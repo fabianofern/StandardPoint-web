@@ -1,0 +1,19 @@
+Notas da Versão: v2.0 - Módulo de Gestão e Squads
+🚀 Novas Funcionalidades
+Gestão de Squads Dinâmica: Agora é possível alocar múltiplos funcionários a um projeto, permitindo a simulação real de equipe.
+
+Fator de Produtividade Individual (HCPP): Implementada a distinção entre a produtividade padrão da empresa e a senioridade individual de cada colaborador (ex: 2h/PF, 4h/PF, 12h/PF).
+
+Cálculo de Capacidade Real (Velocidade): O sistema agora calcula a "Velocidade do Squad" em horas entregues por dia, convertendo a senioridade técnica em tração de calendário.
+
+Cronograma de Execução Inteligente: Adicionados campos de Data de Início do Projeto e Previsão de Entrega com lógica de dias úteis (ignora automaticamente sábados e domingos).
+
+🛠 Melhorias e Correções Lógicas
+Blindagem do Esforço Total: O esforço bruto (horas estimadas) agora é estático com base no escopo (PF), garantindo que o custo do projeto não mude ao alterar o time — apenas o prazo é afetado.
+
+Separação de Datas: Divisão clara entre as datas de "Auditoria de Contagem" e datas de "Execução de Cronograma".
+
+Arredondamento Conservador: Ajuste no cálculo de prazos para sempre arredondar para o próximo dia útil inteiro, evitando previsões irreais de frações de dia.
+
+📊 Relatórios Atualizados
+Relatórios (Gerencial, Analítico, Detalhado e Dados Completos): Todos os outputs foram atualizados para incluir o novo painel de Planejamento de Execução e a composição detalhada do Squad, sem perder o histórico de rastreabilidade da contagem original.

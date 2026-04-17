@@ -96,17 +96,13 @@ dist
 dist-ssr
 *.local
 
-# Electron
-release
-app/dist
-main/dist
-renderer/dist
-*.out
-out
 
 # StandardPoint specific
 *.odt
 objetivo
 'analise da ferramenta realizada dia 09-02-26.odt'
 'plano de implementação dia 10-02-26.odt'
+
+# Node API Backups folder
+backups/
 

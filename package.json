@@ -4,16 +4,26 @@
   "description": "Ferramenta de Análise de Pontos de Função",
   "main": "public/electron.js",
   "scripts": {
-    "dev": "vite",
+    "dev:web": "vite --port 3002",
+    "dev:server": "nodemon src/server/index.js",
+    "dev": "concurrently -k \"npm run dev:server\" \"npm run dev:web\"",
     "build": "vite build",
     "preview": "vite preview",
-    "electron": "electron .",
-    "start": "concurrently -k \"npm run dev\" \"wait-on tcp:5173 && npm run electron\""
+    "start": "npm run dev"
   },
-  "keywords": ["ifpug", "function-point", "electron", "standardpoint"],
+  "keywords": [
+    "ifpug",
+    "function-point",
+    "electron",
+    "standardpoint"
+  ],
   "author": "Seu Nome",
   "license": "MIT",
   "dependencies": {
+    "axios": "^1.15.0",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-icons": "^4.12.0"
@@ -21,8 +31,7 @@
   "devDependencies": {
     "@vitejs/plugin-react": "^4.2.1",
     "concurrently": "^8.2.2",
-    "electron": "^27.2.1",
-    "vite": "^5.0.8",
-    "wait-on": "^7.0.1"
+    "nodemon": "^3.1.14",
+    "vite": "^5.0.8"
   }
 }

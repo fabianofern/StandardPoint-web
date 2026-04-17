@@ -1,11 +1,19 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useFunctionContext } from '../../context/FunctionContext';
+import { calcularMetricasSquad } from '../../utils/squadUtils';
 
 const ReportCompleto = ({ onFilteredDataChange }) => {
     const {
+        empresaAtualObj,
         projetoAtualObj,
-        funcoes
+        funcoes,
+        totals
     } = useFunctionContext();
+
+    const {
+        esforcoTotal,
+        previsaoEntrega
+    } = calcularMetricasSquad(projetoAtualObj, empresaAtualObj, totals);
 
     const [filters, setFilters] = useState({
         tipo: 'all',
@@ -146,12 +154,22 @@ const ReportCompleto = ({ onFilteredDataChange }) => {
 
             {/* Resumo dos Filtros */}
             <div style={styles.resultsSummary}>
-                Exibindo <strong>{filteredData.length}</strong> de <strong>{funcoes.length}</strong> registros
-                {filteredData.length > 0 && (
-                    <span style={{ marginLeft: '1rem', color: '#64748b' }}>
-                        Total PF: <strong>{filteredData.reduce((acc, f) => acc + (f.pf || 0), 0).toFixed(2)}</strong>
+                <div>
+                    Exibindo <strong>{filteredData.length}</strong> de <strong>{funcoes.length}</strong> registros
+                    {filteredData.length > 0 && (
+                        <span style={{ marginLeft: '1rem', color: '#64748b' }}>
+                            Total PF (Filtrado): <strong>{filteredData.reduce((acc, f) => acc + (f.pf || 0), 0).toFixed(2)} PF</strong>
+                        </span>
+                    )}
+                </div>
+                <div style={{ marginTop: '0.5rem', display: 'flex', gap: '1rem', fontSize: '0.85rem', color: '#64748b' }}>
+                    <span style={{ backgroundColor: '#f1f5f9', padding: '4px 8px', borderRadius: '4px' }}>
+                        Esforço Total Estático (Total Projeto): <strong>{Math.ceil(esforcoTotal)}h</strong>
                     </span>
-                )}
+                    <span style={{ backgroundColor: '#e0e7ff', padding: '4px 8px', borderRadius: '4px', color: '#4f46e5' }}>
+                        Previsão de Entrega Global: <strong>{previsaoEntrega || '-'}</strong>
+                    </span>
+                </div>
             </div>
 
             {/* Tabela de Dados Completos */}

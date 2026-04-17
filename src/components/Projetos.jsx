@@ -46,7 +46,8 @@ const Projetos = ({ onNavigate }) => {
     tipoContagem: 'desenvolvimento', // 🆕 NOVO: desenvolvimento | melhoria | aplicacao
     status: 'ativo',
     dataInicioContagem: '',
-    dataFimContagem: ''
+    dataFimContagem: '',
+    dataInicioProjeto: ''
   });
 
   const [errors, setErrors] = useState({});
@@ -145,7 +146,8 @@ const Projetos = ({ onNavigate }) => {
         tipoContagem: projeto.tipoContagem || 'desenvolvimento', // 🆕 CARREGAR TIPO
         status: projeto.status || 'ativo',
         dataInicioContagem: projeto.dataInicioContagem ? new Date(new Date(projeto.dataInicioContagem).getTime() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16) : '',
-        dataFimContagem: projeto.dataFimContagem ? new Date(new Date(projeto.dataFimContagem).getTime() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16) : ''
+        dataFimContagem: projeto.dataFimContagem ? new Date(new Date(projeto.dataFimContagem).getTime() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16) : '',
+        dataInicioProjeto: projeto.dataInicioProjeto ? projeto.dataInicioProjeto.split('T')[0] : ''
       });
     } else {
       setEditingProjeto(null);
@@ -156,7 +158,8 @@ const Projetos = ({ onNavigate }) => {
         tipoContagem: 'desenvolvimento', // 🆕 PADRÃO: DESENVOLVIMENTO
         status: 'ativo',
         dataInicioContagem: '',
-        dataFimContagem: ''
+        dataFimContagem: '',
+        dataInicioProjeto: ''
       });
     }
     setShowForm(true);
@@ -173,7 +176,8 @@ const Projetos = ({ onNavigate }) => {
       tipoContagem: 'desenvolvimento',
       status: 'ativo',
       dataInicioContagem: '',
-      dataFimContagem: ''
+      dataFimContagem: '',
+      dataInicioProjeto: ''
     });
     setErrors({});
   };
@@ -200,7 +204,8 @@ const Projetos = ({ onNavigate }) => {
         tipoContagem: formData.tipoContagem, // 🆕 SALVAR TIPO DE CONTAGEM
         status: formData.status,
         dataInicioContagem: formData.dataInicioContagem ? new Date(formData.dataInicioContagem).toISOString() : null,
-        dataFimContagem: formData.dataFimContagem ? new Date(formData.dataFimContagem).toISOString() : null
+        dataFimContagem: formData.dataFimContagem ? new Date(formData.dataFimContagem).toISOString() : null,
+        dataInicioProjeto: formData.dataInicioProjeto ? formData.dataInicioProjeto : null
       };
 
       if (editingProjeto) {
@@ -1685,20 +1690,60 @@ Exemplo:
                 </div>
               </div>
 
-              {/* Status */}
-              <div style={styles.formGroup}>
-                <label style={styles.formLabel}>
-                  Status
-                </label>
-                <select
-                  value={formData.status}
-                  onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                  style={styles.formSelect}
-                  disabled={isLoading}
-                >
-                  <option value="ativo">Ativo</option>
-                  <option value="inativo">Inativo</option>
-                </select>
+              {/* 🆕 DATAS DO PROJETO E STATUS */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+                <div>
+                  <label style={styles.formLabel}>
+                    Data de Início do Projeto *
+                    <InfoTooltip
+                      title="Data de Início (Execução)"
+                      content="Data prevista para o início dos trabalhos da equipe alocada no módulo de Estimativas."
+                    />
+                  </label>
+                  <input
+                    type="date"
+                    min={new Date().toISOString().split('T')[0]} // Bloqueia passado
+                    value={formData.dataInicioProjeto}
+                    onChange={(e) => {
+                      const dataSelecionada = e.target.value;
+                      if (dataSelecionada) {
+                        const dataObj = new Date(dataSelecionada + "T00:00:00");
+                        const diaDaSemana = dataObj.getDay();
+                        // 0 = Domingo, 6 = Sábado
+                        if (diaDaSemana === 0 || diaDaSemana === 6) {
+                          alert("Atenção: Projetos não podem ser iniciados em finais de semana (Sábado ou Domingo). Por favor, escolha um dia útil.");
+                          e.target.value = formData.dataInicioProjeto; // Reverter visualmente
+                          return;
+                        }
+                      }
+                      setFormData({ ...formData, dataInicioProjeto: dataSelecionada });
+                    }}
+                    style={{
+                      ...styles.formInput,
+                      ...(errors.dataInicioProjeto && styles.formInputError)
+                    }}
+                    required
+                  />
+                  {errors.dataInicioProjeto && (
+                    <span style={styles.formError}>{errors.dataInicioProjeto}</span>
+                  )}
+                </div>
+
+                {/* Status */}
+                <div style={styles.formGroup}>
+                  <label style={styles.formLabel}>
+                    Status
+                  </label>
+                  <select
+                    value={formData.status}
+                    onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                    style={styles.formSelect}
+                    disabled={isLoading}
+                  >
+                    <option value="ativo">Ativo</option>
+                    <option value="inativo">Inativo</option>
+                  </select>
+                </div>
               </div>
 
               <div style={styles.formActions}>

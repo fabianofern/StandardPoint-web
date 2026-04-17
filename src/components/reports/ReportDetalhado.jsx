@@ -1,5 +1,6 @@
 import React from 'react';
 import { useFunctionContext } from '../../context/FunctionContext';
+import { calcularMetricasSquad } from '../../utils/squadUtils';
 
 // Dados das 14 Características (Cópia para exibição)
 const CARACTERISTICAS_CGS = [
@@ -21,12 +22,19 @@ const CARACTERISTICAS_CGS = [
 
 const ReportDetalhado = () => {
     const {
+        empresaAtualObj,
         projetoAtualObj,
         funcoes,
         totals
     } = useFunctionContext();
 
     if (!projetoAtualObj) return null;
+
+    const {
+        membros,
+        capacidadeDiariaSquad,
+        previsaoEntrega
+    } = calcularMetricasSquad(projetoAtualObj, empresaAtualObj, totals);
 
     // Helper para obter justificativa de complexidade (Simplificado base IFPUG)
     const getJustificativa = (func) => {
@@ -119,6 +127,56 @@ const ReportDetalhado = () => {
                                 <td colSpan="5" style={{ ...styles.td, textAlign: 'right' }}>Total PF Bruto:</td>
                                 <td style={styles.td}>{totals.totalPFBruto}</td>
                                 <td></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+
+            {/* Planejamento de Execução */}
+            <div style={{ marginBottom: '3rem', breakInside: 'avoid' }}>
+                <h3 style={styles.sectionTitle}>
+                    <span className="material-symbols-outlined" style={{ verticalAlign: 'middle', marginRight: '8px' }}>group</span>
+                    Planejamento de Execução (Squad Alocado)
+                </h3>
+
+                <div style={styles.tableContainer}>
+                    <table style={styles.table}>
+                        <thead>
+                            <tr>
+                                <th style={styles.th}>Membro do Squad</th>
+                                <th style={styles.th}>Cargo / Papel</th>
+                                <th style={styles.th}>Fator Individual (HCPP)</th>
+                                <th style={styles.th}>Dedicação</th>
+                                <th style={styles.th}>Carga Horária / Dia de Entrega</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {membros.map((membro, index) => (
+                                <tr key={membro.id || index} style={index % 2 === 0 ? styles.trEven : styles.trOdd}>
+                                    <td style={{ ...styles.td, fontWeight: '600' }}>{membro.nome}</td>
+                                    <td style={styles.td}>{membro.cargoNome}</td>
+                                    <td style={styles.td}>{membro.fatorIndividual} h/PF</td>
+                                    <td style={styles.td}>{membro.dedicacao}%</td>
+                                    <td style={{ ...styles.td, fontWeight: 'bold', color: '#0ea5e9' }}>
+                                        {membro.horasEntregues.toFixed(1)} h/dia
+                                    </td>
+                                </tr>
+                            ))}
+                            {membros.length === 0 && (
+                                <tr>
+                                    <td colSpan="5" style={{ textAlign: 'center', padding: '2rem', color: '#94a3b8' }}>Nenhum squad alocado. Prazo será estimado com 1 Pessoa base (8h/dia).</td>
+                                </tr>
+                            )}
+                        </tbody>
+                        <tfoot>
+                            <tr style={{ backgroundColor: '#f8fafc', fontWeight: 'bold' }}>
+                                <td colSpan="4" style={{ ...styles.td, textAlign: 'right' }}>Capacidade Total do Squad (Velocidade):</td>
+                                <td style={{ ...styles.td, color: '#0ea5e9' }}>{capacidadeDiariaSquad.toFixed(1)} h/dia</td>
+                            </tr>
+                            <tr style={{ backgroundColor: '#e0e7ff', fontWeight: 'bold' }}>
+                                <td colSpan="4" style={{ ...styles.td, textAlign: 'right', color: '#4f46e5' }}>Previsão de Entrega (Calendário):</td>
+                                <td style={{ ...styles.td, color: '#4f46e5' }}>{previsaoEntrega || '-'}</td>
                             </tr>
                         </tfoot>
                     </table>

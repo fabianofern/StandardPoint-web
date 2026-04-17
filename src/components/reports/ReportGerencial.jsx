@@ -1,5 +1,6 @@
 import React from 'react';
 import { useFunctionContext } from '../../context/FunctionContext';
+import { calcularMetricasSquad } from '../../utils/squadUtils';
 
 const ReportGerencial = () => {
     const {
@@ -9,6 +10,12 @@ const ReportGerencial = () => {
     } = useFunctionContext();
 
     if (!projetoAtualObj) return null;
+
+    const {
+        esforcoTotal,
+        hcppPadrao,
+        previsaoEntrega
+    } = calcularMetricasSquad(projetoAtualObj, empresaAtualObj, totals);
 
     // Preparar dados para o gráfico comparativo (Outros projetos da empresa)
     const outrosProjetos = empresaAtualObj.projetos || [];
@@ -39,74 +46,84 @@ const ReportGerencial = () => {
                 </p>
             </div>
 
-            {/* Cards de Resumo */}
+            {/* NOVO QUADRO DE RESUMO (3 BLOCOS) */}
             <div style={styles.cardsContainer}>
+
+                {/* 1. Status da Contagem */}
                 <div style={styles.card}>
-                    <div style={styles.cardIcon}>functions</div>
-                    <div style={styles.cardValue}>{totals.totalPF}</div>
-                    <div style={styles.cardLabel}>Pontos de Função Total</div>
-                    <div style={styles.cardSub}>
-                        {totals.totalPFBruto} Bruto • VAF {totals.vaf}
-                    </div>
-                </div>
-
-                <div style={styles.card}>
-                    <div style={{ ...styles.cardIcon, backgroundColor: '#dcfce7', color: '#166534' }}>payments</div>
-                    <div style={styles.cardValue}>R$ {totals.valorTotal}</div>
-                    <div style={styles.cardLabel}>Valor Estimado</div>
-                    <div style={styles.cardSub}>
-                        Base: R$ {empresaAtualObj.valorPF?.toFixed(2)} / PF
-                    </div>
-                </div>
-
-                <div style={styles.card}>
-                    <div style={{ ...styles.cardIcon, backgroundColor: '#fef3c7', color: '#b45309' }}>schedule</div>
-                    <div style={styles.cardValue}>{totals.esforcoTotal}h</div>
-                    <div style={styles.cardLabel}>Esforço Estimado</div>
-                    <div style={styles.cardSub}>
-                        ~{totals.diasUteis} dias úteis ({empresaAtualObj.hcpp}h/PF)
-                    </div>
-                </div>
-            </div>
-
-            <div style={styles.gridTwoColumns}>
-                {/* Status do Projeto */}
-                <div style={styles.sectionBox}>
-                    <h3 style={styles.sectionTitle}>Status da Contagem</h3>
-
-                    <div style={styles.statusList}>
-                        <div style={styles.statusItem}>
-                            <span style={styles.statusLabel}>Data de Início</span>
-                            <span style={styles.statusValue}>
-                                {projetoAtualObj.dataInicioContagem
-                                    ? new Date(projetoAtualObj.dataInicioContagem).toLocaleDateString('pt-BR')
-                                    : '-'}
+                    <div style={{ ...styles.cardIcon, backgroundColor: '#f1f5f9', color: '#475569' }}>rule</div>
+                    <div style={styles.cardLabel}>Status da Contagem</div>
+                    <div style={styles.statusMiniList}>
+                        <div style={styles.statusMiniItem}>
+                            <span>Início Contagem:</span>
+                            <span style={{ fontWeight: '600', color: '#0f172a' }}>
+                                {projetoAtualObj.dataInicioContagem ? new Date(projetoAtualObj.dataInicioContagem).toLocaleDateString('pt-BR') : '-'}
                             </span>
                         </div>
-
-                        <div style={styles.statusItem}>
-                            <span style={styles.statusLabel}>Última Modificação</span>
-                            <span style={styles.statusValue}>
-                                {projetoAtualObj.updatedAt
-                                    ? new Date(projetoAtualObj.updatedAt).toLocaleDateString('pt-BR')
-                                    : new Date().toLocaleDateString('pt-BR')}
+                        <div style={styles.statusMiniItem}>
+                            <span>Fim Contagem/Ref:</span>
+                            <span style={{ fontWeight: '600', color: '#0f172a' }}>
+                                {projetoAtualObj.dataFimContagem ? new Date(projetoAtualObj.dataFimContagem).toLocaleDateString('pt-BR') : new Date(projetoAtualObj.updatedAt || new Date()).toLocaleDateString('pt-BR')}
                             </span>
                         </div>
-
-                        <div style={styles.statusItem}>
-                            <span style={styles.statusLabel}>Total de Funções</span>
-                            <span style={styles.statusValue}>{totals.totalItems}</span>
-                        </div>
-
-                        <div style={styles.statusItem}>
-                            <span style={styles.statusLabel}>Tipo de Contagem</span>
-                            <span style={styles.statusValue} className="capitalize">
+                        <div style={styles.statusMiniItem}>
+                            <span>Tipo de Contagem:</span>
+                            <span style={{ fontWeight: '600', color: '#0f172a', textTransform: 'capitalize' }}>
                                 {projetoAtualObj.tipoContagem || 'Desenvolvimento'}
                             </span>
                         </div>
                     </div>
                 </div>
 
+                {/* 2. Cronograma de Projeto */}
+                <div style={styles.card}>
+                    <div style={{ ...styles.cardIcon, backgroundColor: '#e0e7ff', color: '#4f46e5' }}>calendar_month</div>
+                    <div style={styles.cardLabel}>Cronograma de Projeto</div>
+                    <div style={styles.statusMiniList}>
+                        <div style={styles.statusMiniItem}>
+                            <span>Início do Projeto:</span>
+                            <span style={{ fontWeight: '600', color: '#0f172a' }}>
+                                {projetoAtualObj.dataInicioProjeto ? new Date(projetoAtualObj.dataInicioProjeto + 'T00:00:00').toLocaleDateString('pt-BR') : '-'}
+                            </span>
+                        </div>
+                        <div style={styles.statusMiniItem}>
+                            <span>Previsão Entrega:</span>
+                            <span style={{ fontWeight: 'bold', color: '#1246e2' }}>
+                                {previsaoEntrega || '-'}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                {/* 3. Resumo de Esforço */}
+                <div style={styles.card}>
+                    <div style={{ ...styles.cardIcon, backgroundColor: '#fef3c7', color: '#b45309' }}>schedule</div>
+                    <div style={styles.cardLabel}>Resumo de Esforço</div>
+                    <div style={styles.statusMiniList}>
+                        <div style={styles.statusMiniItem}>
+                            <span>Total de PFs:</span>
+                            <span style={{ fontWeight: '600', color: '#0f172a' }}>
+                                {parseFloat(totals.totalPF || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} PF
+                            </span>
+                        </div>
+                        <div style={styles.statusMiniItem}>
+                            <span>Esforço Total:</span>
+                            <span style={{ fontWeight: 'bold', color: '#b45309' }}>
+                                {esforcoTotal.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })} Horas
+                            </span>
+                        </div>
+                        <div style={styles.statusMiniItem}>
+                            <span>Amostra Padrão:</span>
+                            <span style={{ fontWeight: '600', color: '#64748b', fontSize: '0.8rem' }}>
+                                {hcppPadrao} h/PF
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <div style={{ ...styles.gridTwoColumns, gridTemplateColumns: 'minmax(300px, 1fr)' }}>
                 {/* Gráfico Comparativo (CSS Puro) */}
                 <div style={styles.sectionBox}>
                     <h3 style={styles.sectionTitle}>Comparativo de Tamanho (PF) - Projetos da Empresa</h3>
@@ -231,6 +248,21 @@ const styles = {
     statusValue: {
         fontWeight: '600',
         color: '#0f172a',
+    },
+    statusMiniList: {
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '0.5rem',
+        width: '100%',
+    },
+    statusMiniItem: {
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        fontSize: '0.85rem',
+        color: '#64748b',
+        paddingBottom: '0.4rem',
+        borderBottom: '1px solid #f1f5f9'
     },
     chartContainer: {
         display: 'flex',

@@ -29,16 +29,11 @@ const EmpresaConfig = ({ isCreatingNew = false, onNavigate, empresaId }) => {
     hcpp: '',
     tecnologias: [],
     experienciaTime: [],
-    faseCiclo: 'codificacao',
-    equipe: [],
+    faseCiclo: 'codificacao'
   });
 
   // Estados para novos itens
   const [novaTecnologia, setNovaTecnologia] = useState('');
-  const [novoMembro, setNovoMembro] = useState({
-    cargo: '',
-    nome: ''
-  });
 
   const [errors, setErrors] = useState({});
   const [success, setSuccess] = useState(false);
@@ -72,8 +67,7 @@ const EmpresaConfig = ({ isCreatingNew = false, onNavigate, empresaId }) => {
         hcpp: '',
         tecnologias: [],
         experienciaTime: [],
-        faseCiclo: 'codificacao',
-        equipe: [],
+        faseCiclo: 'codificacao'
       });
       console.log('🔗 [EmpresaConfig] Modo criação - formulário resetado');
     } else if (empresaParaEditar) {
@@ -84,8 +78,7 @@ const EmpresaConfig = ({ isCreatingNew = false, onNavigate, empresaId }) => {
         hcpp: empresaParaEditar.hcpp || 20,
         tecnologias: empresaParaEditar.tecnologias || [],
         experienciaTime: empresaParaEditar.experienciaTime || [],
-        faseCiclo: empresaParaEditar.faseCiclo || 'codificacao',
-        equipe: empresaParaEditar.equipe || [],
+        faseCiclo: empresaParaEditar.faseCiclo || 'codificacao'
       });
       console.log('🔗 [EmpresaConfig] Carregados dados da empresa:', empresaParaEditar.nome);
     } else {
@@ -180,35 +173,6 @@ const EmpresaConfig = ({ isCreatingNew = false, onNavigate, empresaId }) => {
     }));
   };
 
-  // Handler para adicionar membro
-  const handleAddMembro = () => {
-    const cargo = novoMembro.cargo.trim();
-    const nome = novoMembro.nome.trim();
-
-    // Validar nome (apenas letras)
-    const regex = /^[A-Za-zÀ-ÿ\s\.]+$/;
-    if (!regex.test(nome)) {
-      alert('O nome do membro deve conter apenas letras.');
-      return;
-    }
-
-    if (cargo && nome) {
-      setFormData(prev => ({
-        ...prev,
-        equipe: [...prev.equipe, { cargo, nome }]
-      }));
-      setNovoMembro({ cargo: '', nome: '' });
-    }
-  };
-
-  // Handler para remover membro
-  const handleRemoveMembro = (index) => {
-    setFormData(prev => ({
-      ...prev,
-      equipe: prev.equipe.filter((_, i) => i !== index)
-    }));
-  };
-
   // ✅ CORRIGIDO: Handler para excluir empresa
   const handleDeleteEmpresa = async () => {
     if (!empresaAtualObj) {
@@ -280,8 +244,7 @@ const EmpresaConfig = ({ isCreatingNew = false, onNavigate, empresaId }) => {
           hcpp: parseFloat(formData.hcpp.toFixed(1)),
           tecnologias: formData.tecnologias,
           experienciaTime: formData.experienciaTime,
-          faseCiclo: formData.faseCiclo,
-          equipe: formData.equipe,
+          faseCiclo: formData.faseCiclo
         });
 
         setSuccess(true);
@@ -301,8 +264,7 @@ const EmpresaConfig = ({ isCreatingNew = false, onNavigate, empresaId }) => {
           hcpp: parseFloat(formData.hcpp.toFixed(1)),
           tecnologias: formData.tecnologias,
           experienciaTime: formData.experienciaTime,
-          faseCiclo: formData.faseCiclo,
-          equipe: formData.equipe,
+          faseCiclo: formData.faseCiclo
         });
 
         setSuccess(true);
@@ -326,8 +288,7 @@ const EmpresaConfig = ({ isCreatingNew = false, onNavigate, empresaId }) => {
         hcpp: '',
         tecnologias: [],
         experienciaTime: [],
-        faseCiclo: 'codificacao',
-        equipe: [],
+        faseCiclo: 'codificacao'
       });
     } else if (empresaAtualObj) {
       setFormData({
@@ -336,8 +297,7 @@ const EmpresaConfig = ({ isCreatingNew = false, onNavigate, empresaId }) => {
         hcpp: empresaAtualObj.hcpp || 20,
         tecnologias: empresaAtualObj.tecnologias || [],
         experienciaTime: empresaAtualObj.experienciaTime || [],
-        faseCiclo: empresaAtualObj.faseCiclo || 'codificacao',
-        equipe: empresaAtualObj.equipe || [],
+        faseCiclo: empresaAtualObj.faseCiclo || 'codificacao'
       });
     }
     setErrors({});
@@ -1312,110 +1272,7 @@ const EmpresaConfig = ({ isCreatingNew = false, onNavigate, empresaId }) => {
           </div>
         </div>
 
-        {/* SEÇÃO 4: TIME DO PROJETO */}
-        <div style={styles.section}>
-          <h4 style={styles.sectionTitle}>
-            <span className="material-symbols-outlined" style={styles.sectionIcon}>
-              groups
-            </span>
-            Time do Projeto
-          </h4>
-
-          <div style={styles.formGroup}>
-            <label style={styles.label}>
-              Membros do Time
-              <span style={styles.optional}>(opcional)</span>
-            </label>
-
-            {/* Inputs para adicionar novo membro */}
-            <div style={styles.membrosInputContainer}>
-              <input
-                type="text"
-                value={novoMembro.cargo}
-                onChange={(e) => setNovoMembro(prev => ({ ...prev, cargo: e.target.value }))}
-                placeholder="Cargo (ex: Desenvolvedor Frontend)"
-                style={styles.membroInput}
-                onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddMembro())}
-                disabled={isSubmitting}
-              />
-              <input
-                type="text"
-                value={novoMembro.nome}
-                onChange={(e) => setNovoMembro(prev => ({ ...prev, nome: e.target.value }))}
-                placeholder="Nome do membro"
-                style={styles.membroInput}
-                onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddMembro())}
-                disabled={isSubmitting}
-              />
-              <button
-                type="button"
-                onClick={handleAddMembro}
-                style={styles.addMembroButton}
-                disabled={!novoMembro.cargo.trim() || !novoMembro.nome.trim() || isSubmitting}
-              >
-                <span className="material-symbols-outlined">add</span>
-              </button>
-            </div>
-
-            {/* Tabela de membros */}
-            {formData.equipe.length > 0 ? (
-              <table style={styles.membrosTable}>
-                <thead style={styles.membrosHeader}>
-                  <tr>
-                    <th style={styles.membrosHeaderCell}>Cargo</th>
-                    <th style={styles.membrosHeaderCell}>Nome</th>
-                    <th style={styles.membrosHeaderCell}></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {formData.equipe.map((membro, index) => (
-                    <tr
-                      key={index}
-                      style={{
-                        ...styles.membrosRow,
-                        ...(index === formData.equipe.length - 1 && styles.membrosRowLast)
-                      }}
-                    >
-                      <td style={styles.membrosCell}>{membro.cargo}</td>
-                      <td style={styles.membrosCell}>{membro.nome}</td>
-                      <td style={styles.membrosCell}>
-                        <button
-                          type="button"
-                          onClick={() => !isSubmitting && handleRemoveMembro(index)}
-                          style={styles.removeMembroButton}
-                          disabled={isSubmitting}
-                        >
-                          <span className="material-symbols-outlined" style={styles.removeMembroIcon}>
-                            delete
-                          </span>
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            ) : (
-              <div style={{
-                padding: '2rem',
-                backgroundColor: '#f8fafc',
-                borderRadius: '8px',
-                border: '1px solid #e2e8f0',
-                textAlign: 'center',
-                color: '#9ca3af',
-                fontSize: '0.875rem',
-                fontStyle: 'italic'
-              }}>
-                Nenhum membro adicionado ao time. Preencha os campos acima e clique em "+" para adicionar.
-              </div>
-            )}
-
-            <div style={styles.helpText}>
-              {formData.equipe.length} membro(s) no time
-            </div>
-          </div>
-        </div>
-
-        {/* SEÇÃO 5: IMPACTO DOS CÁLCULOS */}
+        {/* SEÇÃO 4: IMPACTO DOS CÁLCULOS */}
         <div style={styles.impactSection}>
           <h4 style={styles.impactTitle}>
             <span className="material-symbols-outlined" style={styles.impactIcon}>

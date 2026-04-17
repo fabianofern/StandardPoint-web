@@ -12,9 +12,12 @@ import BackupManager from './components/BackupManager';
 import EmpresaConfig from './components/EmpresaConfig';
 import EmpresaList from './components/EmpresaList';
 import Projetos from './components/Projetos';
+import SquadProjeto from './components/SquadProjeto';
+import EstimativasProjeto from './components/EstimativasProjeto';
+import FuncionariosModule from './components/FuncionariosModule';
 import ValorAjusteContent from './components/ValorAjusteContent';
 
-import WelcomeScreen from './components/WelcomeScreen';
+
 import Reports from './components/reports/Reports';
 
 import DataCleaning from './components/DataCleaning';
@@ -96,7 +99,8 @@ function AppContent() {
     empresas,
     projetoAtualObj,
     projetoAtual,
-    saveVAF
+    saveVAF,
+    adicionarEmpresa
   } = useFunctionContext();
   const { currentUser, loading: authLoading } = useAuth(); // Hook de autenticação
   const { currentPage, params, navigate } = useHashRouter();
@@ -158,6 +162,22 @@ function AppContent() {
       return;
     }
   }, [currentPage, empresaAtualObj, loading, authLoading, currentUser, isCreatingNewEmpresa, empresas.length, navigate]);
+
+  // 4. Lógica de Onboarding Automático (Zero Data)
+  useEffect(() => {
+    if (!loading && !authLoading && currentUser && empresas.length === 0) {
+      console.log('🚀 [App] Primeiro acesso detectado. Criando empresa padrão automaticamente...');
+      adicionarEmpresa({
+        nome: 'Minha Empresa',
+        valorPF: 850.00,
+        hcpp: 20,
+        tecnologias: [],
+        experienciaTime: [],
+        faseCiclo: 'codificacao',
+        timeProjeto: [],
+      });
+    }
+  }, [loading, authLoading, currentUser, empresas.length, adicionarEmpresa]);
 
   const handleNavigate = useCallback((page, navParams = {}) => {
     console.log('🔗 [App] Navegando manualmente para:', page, navParams);
@@ -236,15 +256,27 @@ function AppContent() {
     );
   }
 
-  // 4. Lógica de Onboarding (Zero Data)
-  // Só mostra WelcomeScreen se não houver NENHUMA empresa cadastrada
+  // 4. Lógica de Onboarding Automático (Zero Data)
   if (empresas.length === 0) {
     return (
-      <WelcomeScreen
-        onStart={() => {
-          navigate('empresa', { new: 'true' });
-        }}
-      />
+      <div style={{
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        minHeight: '100vh',
+        backgroundColor: '#f6f6f8',
+        flexDirection: 'column',
+        gap: '1rem',
+      }}>
+        <span className="material-symbols-outlined" style={{
+          fontSize: '48px',
+          color: '#1246e2',
+          animation: 'spin 1s linear infinite'
+        }}>
+          sync
+        </span>
+        <p style={{ color: '#64748b' }}>Configurando seu primeiro acesso...</p>
+      </div>
     );
   }
 
@@ -302,6 +334,9 @@ function AppContent() {
           {currentPage === 'backups' && <BackupsContent onNavigate={handleNavigate} />}
           {currentPage === 'controle-acessos' && <AccessControl />}
           {currentPage === 'relatorios' && <Reports />}
+          {currentPage === 'funcionarios' && <FuncionariosModule />}
+          {currentPage === 'projeto-squad' && <SquadProjeto />}
+          {currentPage === 'projeto-estimativas' && <EstimativasProjeto />}
 
         </main>
       </div>

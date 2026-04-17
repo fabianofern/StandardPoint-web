@@ -1,14 +1,21 @@
 import React, { useMemo } from 'react';
 import { useFunctionContext } from '../../context/FunctionContext';
+import { calcularMetricasSquad } from '../../utils/squadUtils';
 
 const ReportAnalitico = () => {
     const {
+        empresaAtualObj,
         projetoAtualObj,
         funcoes,
         totals
     } = useFunctionContext();
 
     if (!projetoAtualObj) return null;
+
+    const {
+        membros,
+        capacidadeDiariaSquad
+    } = calcularMetricasSquad(projetoAtualObj, empresaAtualObj, totals);
 
     // Cálculos para os gráficos
     const stats = useMemo(() => {
@@ -189,6 +196,41 @@ const ReportAnalitico = () => {
                         <span style={{ ...styles.metricValue, color: totals.coberturaRequisitos?.funcoesSemRequisito > 0 ? '#ef4444' : '#10b981' }}>
                             {totals.coberturaRequisitos?.funcoesSemRequisito || 0}
                         </span>
+                    </div>
+                </div>
+
+                {/* Composição do Squad e Produtividade */}
+                <div style={styles.card}>
+                    <h3 style={styles.cardTitle}>Composição do Squad</h3>
+
+                    <div style={styles.metricItem}>
+                        <span style={styles.metricLabel}>Capacidade Diária (Velocidade)</span>
+                        <span style={{ ...styles.metricValue, color: '#0ea5e9' }}>
+                            {capacidadeDiariaSquad.toFixed(2)} h/dia
+                        </span>
+                    </div>
+
+                    <div style={styles.tableSimple}>
+                        <div style={{ ...styles.tableRow, borderBottom: '2px solid #e2e8f0', color: '#64748b', fontWeight: 'bold', fontSize: '0.8rem' }}>
+                            <span style={{ flex: 2 }}>Membro</span>
+                            <span style={{ flex: 1, textAlign: 'center' }}>Fator PF</span>
+                            <span style={{ flex: 1, textAlign: 'right' }}>Entrega/Dia</span>
+                        </div>
+                        {membros.map((membro) => (
+                            <div key={membro.id} style={styles.tableRow}>
+                                <span style={{ flex: 2, fontWeight: '600', color: '#475569', display: 'flex', flexDirection: 'column' }}>
+                                    {membro.nome}
+                                    <span style={{ fontSize: '0.75rem', color: '#94a3b8', fontWeight: 'normal' }}>{membro.cargoNome} ({membro.dedicacao}%)</span>
+                                </span>
+                                <span style={{ flex: 1, textAlign: 'center' }}>{membro.fatorIndividual} h/PF</span>
+                                <span style={{ flex: 1, textAlign: 'right', fontWeight: 'bold', color: '#0ea5e9' }}>{membro.horasEntregues.toFixed(1)} h</span>
+                            </div>
+                        ))}
+                        {membros.length === 0 && (
+                            <div style={{ textAlign: 'center', color: '#94a3b8', padding: '1rem', fontStyle: 'italic', fontSize: '0.85rem' }}>
+                                Nenhum membro alocado no Squad.
+                            </div>
+                        )}
                     </div>
                 </div>
 

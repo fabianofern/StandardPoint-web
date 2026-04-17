@@ -26,7 +26,7 @@ export const FunctionProvider = ({ children }) => {
       empresaAtual: null,
       projetoAtual: null,
       lastModified: new Date().toISOString(),
-      version: '1.3.0' // 🆕 VERSÃO ATUALIZADA COM RASTREABILIDADE
+      version: '1.4.0' // 🆕 VERSÃO ATUALIZADA COM CARGOS/FUNCIONÁRIOS
     };
   };
 
@@ -115,16 +115,10 @@ export const FunctionProvider = ({ children }) => {
       try {
         console.log('📂 [Context] Carregando dados do sistema...');
         let loadedData = null;
-
-        if (window.electronAPI && window.electronAPI.loadData) {
-          console.log('🔌 [Context] Usando Electron API para carregar');
-          loadedData = await window.electronAPI.loadData();
-        } else {
-          console.log('💻 [Context] Usando localStorage');
-          const stored = localStorage.getItem('standardpoint-data');
-          if (stored) {
-            loadedData = JSON.parse(stored);
-          }
+        console.log('💻 [Context] Usando localStorage');
+        const stored = localStorage.getItem('standardpoint-data');
+        if (stored) {
+          loadedData = JSON.parse(stored);
         }
 
         if (!mounted) return;
@@ -132,17 +126,57 @@ export const FunctionProvider = ({ children }) => {
         if (loadedData && loadedData.empresas) {
           console.log(`✅ [Context] ${loadedData.empresas.length} empresa(s) carregada(s)`);
 
-          const empresasComFuncoes = loadedData.empresas.map(empresa => ({
-            ...empresa,
-            projetos: empresa.projetos?.map(projeto => ({
-              ...projeto,
-              funcoes: projeto.funcoes || [],
-              // 🆕 GARANTIR QUE REQUISITOS EXISTAM (migração de dados antigos)
-              requisitos: projeto.requisitos || [],
-            })) || []
-          }));
+          const cargosDefault = [
+            { id: 'c1', titulo: 'Analista de Negócios', fatorPF: 0 },
+            { id: 'c2', titulo: 'Desenvolvedor Frontend', fatorPF: 0 },
+            { id: 'c3', titulo: 'Desenvolvedor Backend', fatorPF: 0 },
+            { id: 'c4', titulo: 'Desenvolvedor Fullstack', fatorPF: 0 },
+            { id: 'c5', titulo: 'Analista de QA', fatorPF: 0 },
+            { id: 'c6', titulo: 'Product Owner (PO)', fatorPF: 0 },
+            { id: 'c7', titulo: 'Arquiteto de Software', fatorPF: 0 },
+            { id: 'c8', titulo: 'Scrum Master', fatorPF: 0 }
+          ];
+
+          const empresasComFuncoes = loadedData.empresas.map(empresa => {
+            let cargos = empresa.cargos || [...cargosDefault];
+            let funcionarios = empresa.funcionarios || [];
+
+            // Migração da equipe antiga
+            if (empresa.equipe && empresa.equipe.length > 0 && funcionarios.length === 0) {
+              console.log(`🔄 [Context] Migrando equipe da empresa ${empresa.nome}`);
+              empresa.equipe.forEach(membro => {
+                let cargoId = cargos.find(c => c.titulo.toLowerCase() === membro.cargo.toLowerCase())?.id;
+                if (!cargoId) {
+                  const newCargo = { id: `cargo-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`, titulo: membro.cargo, fatorPF: 0 };
+                  cargos.push(newCargo);
+                  cargoId = newCargo.id;
+                }
+                funcionarios.push({
+                  id: `func-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                  nome: membro.nome,
+                  cargoId: cargoId,
+                  fatorIndividualPF: 0
+                });
+              });
+            }
+
+            const { equipe, ...empresaSemEquipe } = empresa; // Remove equipe antiga para limpar DB
+
+            return {
+              ...empresaSemEquipe,
+              cargos,
+              funcionarios,
+              projetos: empresa.projetos?.map(projeto => ({
+                ...projeto,
+                funcoes: projeto.funcoes || [],
+                requisitos: projeto.requisitos || [],
+                squad: projeto.squad || [] // 🆕 GARANTIR QUE SQUAD EXISTA
+              })) || []
+            };
+          });
 
           setEmpresas(empresasComFuncoes);
+
 
           if (loadedData.empresaAtual) {
             const empresaExiste = empresasComFuncoes.find(e => e.id === loadedData.empresaAtual);
@@ -207,16 +241,11 @@ export const FunctionProvider = ({ children }) => {
           empresaAtual,
           projetoAtual,
           lastModified: new Date().toISOString(),
-          version: '1.3.0'
+          version: '1.4.0'
         };
 
-        if (window.electronAPI && window.electronAPI.saveData) {
-          await window.electronAPI.saveData(dataToSave);
-          console.log('✅ [Context] Dados salvos via Electron API');
-        } else {
-          localStorage.setItem('standardpoint-data', JSON.stringify(dataToSave));
-          console.log('✅ [Context] Dados salvos via localStorage');
-        }
+        localStorage.setItem('standardpoint-data', JSON.stringify(dataToSave));
+        console.log('✅ [Context] Dados salvos via localStorage');
 
         setLastSaved(dataToSave.lastModified);
         setSaveStatus('saved');
@@ -240,7 +269,7 @@ export const FunctionProvider = ({ children }) => {
       empresaAtual,
       projetoAtual,
       lastModified: new Date().toISOString(),
-      version: '1.3.0',
+      version: '1.4.0',
       tipo: 'backup-manual',
       totalEmpresas: empresas.length,
       totalProjetos: empresas.reduce((acc, emp) => acc + (emp.projetos?.length || 0), 0)
@@ -252,37 +281,20 @@ export const FunctionProvider = ({ children }) => {
       setSaveStatus('saving');
       const dadosBackup = getBackupData();
 
-      if (window.electronAPI?.salvarBackupComDialogo) {
-        const result = await window.electronAPI.salvarBackupComDialogo(dadosBackup);
-        if (result.success) {
-          setSaveStatus('saved');
-          setTimeout(() => setSaveStatus('idle'), 2000);
-          return {
-            success: true,
-            message: `Backup salvo em: ${result.filePath}`,
-            filePath: result.filePath
-          };
-        } else if (result.canceled) {
-          setSaveStatus('idle');
-          return { success: false, canceled: true, message: 'Operação cancelada pelo usuário' };
-        } else {
-          throw new Error('Falha ao salvar backup');
-        }
+      const { backupAPI } = await import('../utils/webAdapter');
+      const result = await backupAPI.save(dadosBackup);
+      if (result) {
+        setSaveStatus('saved');
+        setTimeout(() => setSaveStatus('idle'), 2000);
+        return {
+          success: true,
+          message: `Backup salvo com sucesso no servidor: ${result.filename || ''}`,
+          filePath: result.filename
+        };
       }
+      throw new Error('Falha ao salvar backup no servidor');
 
-      const blob = new Blob([JSON.stringify(dadosBackup, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `backup-standardpoint-${new Date().toISOString().split('T')[0]}.json`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
 
-      setSaveStatus('saved');
-      setTimeout(() => setSaveStatus('idle'), 2000);
-      return { success: true, message: 'Backup baixado com sucesso!' };
     } catch (error) {
       console.error('❌ [Context] Erro no backup:', error);
       setSaveStatus('error');
@@ -295,11 +307,24 @@ export const FunctionProvider = ({ children }) => {
   // ====================
   const adicionarEmpresa = (novaEmpresa) => {
     console.log('➕ [Context] Adicionando nova empresa:', novaEmpresa.nome);
+    const cargosDefault = [
+      { id: `cargo-${Date.now()}-1`, titulo: 'Analista de Negócios', fatorPF: 0 },
+      { id: `cargo-${Date.now()}-2`, titulo: 'Desenvolvedor Frontend', fatorPF: 0 },
+      { id: `cargo-${Date.now()}-3`, titulo: 'Desenvolvedor Backend', fatorPF: 0 },
+      { id: `cargo-${Date.now()}-4`, titulo: 'Desenvolvedor Fullstack', fatorPF: 0 },
+      { id: `cargo-${Date.now()}-5`, titulo: 'Analista de QA', fatorPF: 0 },
+      { id: `cargo-${Date.now()}-6`, titulo: 'Product Owner (PO)', fatorPF: 0 },
+      { id: `cargo-${Date.now()}-7`, titulo: 'Arquiteto de Software', fatorPF: 0 },
+      { id: `cargo-${Date.now()}-8`, titulo: 'Scrum Master', fatorPF: 0 }
+    ];
+
     const empresaComId = {
       ...novaEmpresa,
       id: `empresa-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       hcpp: novaEmpresa.hcpp || 20,
       projetos: [],
+      cargos: cargosDefault,
+      funcionarios: [],
       dataCriacao: new Date().toISOString()
     };
     setEmpresas(prev => [...prev, empresaComId]);
@@ -329,6 +354,90 @@ export const FunctionProvider = ({ children }) => {
     });
   };
 
+  // ====================
+  // 7.1 FUNÇÕES DE CARGOS E FUNCIONÁRIOS
+  // ====================
+  const adicionarCargo = (empresaId, novoCargo) => {
+    console.log('➕ [Context] Adicionando cargo à empresa:', empresaId);
+    const cargoComId = {
+      ...novoCargo,
+      id: `cargo-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      fatorPF: parseFloat(novoCargo.fatorPF) || 0
+    };
+
+    setEmpresas(prev => prev.map(emp => {
+      if (emp.id === empresaId) {
+        return { ...emp, cargos: [...(emp.cargos || []), cargoComId], updatedAt: new Date().toISOString() };
+      }
+      return emp;
+    }));
+  };
+
+  const atualizarCargo = (empresaId, cargoId, dadosAtualizados) => {
+    console.log(`✏️ [Context] Atualizando cargo ${cargoId}`);
+    setEmpresas(prev => prev.map(emp => {
+      if (emp.id === empresaId) {
+        return {
+          ...emp,
+          cargos: emp.cargos.map(c => c.id === cargoId ? { ...c, ...dadosAtualizados, fatorPF: parseFloat(dadosAtualizados.fatorPF) || 0 } : c),
+          updatedAt: new Date().toISOString()
+        };
+      }
+      return emp;
+    }));
+  };
+
+  const removerCargo = (empresaId, cargoId) => {
+    console.log(`🗑️ [Context] Removendo cargo ${cargoId}`);
+    setEmpresas(prev => prev.map(emp => {
+      if (emp.id === empresaId) {
+        return { ...emp, cargos: emp.cargos.filter(c => c.id !== cargoId), updatedAt: new Date().toISOString() };
+      }
+      return emp;
+    }));
+  };
+
+  const adicionarFuncionario = (empresaId, novoFuncionario) => {
+    console.log('➕ [Context] Adicionando funcionario à empresa:', empresaId);
+    const funcComId = {
+      ...novoFuncionario,
+      id: `func-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      fatorIndividualPF: parseFloat(novoFuncionario.fatorIndividualPF) || 0
+    };
+
+    setEmpresas(prev => prev.map(emp => {
+      if (emp.id === empresaId) {
+        return { ...emp, funcionarios: [...(emp.funcionarios || []), funcComId], updatedAt: new Date().toISOString() };
+      }
+      return emp;
+    }));
+  };
+
+  const atualizarFuncionario = (empresaId, funcId, dadosAtualizados) => {
+    console.log(`✏️ [Context] Atualizando funcionario ${funcId}`);
+    setEmpresas(prev => prev.map(emp => {
+      if (emp.id === empresaId) {
+        return {
+          ...emp,
+          funcionarios: emp.funcionarios.map(f => f.id === funcId ? { ...f, ...dadosAtualizados, fatorIndividualPF: parseFloat(dadosAtualizados.fatorIndividualPF) || 0 } : f),
+          updatedAt: new Date().toISOString()
+        };
+      }
+      return emp;
+    }));
+  };
+
+  const removerFuncionario = (empresaId, funcId) => {
+    console.log(`🗑️ [Context] Removendo funcionario ${funcId}`);
+    setEmpresas(prev => prev.map(emp => {
+      if (emp.id === empresaId) {
+        return { ...emp, funcionarios: emp.funcionarios.filter(f => f.id !== funcId), updatedAt: new Date().toISOString() };
+      }
+      return emp;
+    }));
+  };
+
+
   const adicionarProjeto = (empresaId, novoProjeto) => {
     console.log('➕ [Context] Adicionando novo projeto à empresa:', empresaId);
     const projetoComId = {
@@ -336,6 +445,7 @@ export const FunctionProvider = ({ children }) => {
       id: `projeto-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       funcoes: [],
       requisitos: [], // 🆕 INICIALIZAR ARRAY DE REQUISITOS
+      squad: [], // 🆕 INICIALIZAR ARRAY DO SQUAD DO PROJETO
       dataCriacao: new Date().toISOString(),
       dataInicioContagem: new Date().toISOString(),
       dataFimContagem: null
@@ -370,6 +480,73 @@ export const FunctionProvider = ({ children }) => {
           projetos: emp.projetos.map(proj => {
             if (proj.id === projetoId) {
               return { ...proj, ...dadosAtualizados, updatedAt: new Date().toISOString() };
+            }
+            return proj;
+          })
+        };
+      }
+      return emp;
+    }));
+  };
+
+  // ====================
+  // 7.2 FUNÇÕES DE SQUAD DO PROJETO
+  // ====================
+  const adicionarMembroSquad = (empresaId, projetoId, membroInfo) => {
+    console.log(`➕ [Context] Adicionando membro ao squad do projeto ${projetoId}`);
+    const membroComId = {
+      ...membroInfo,
+      id: `squad-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      adicionadoEm: new Date().toISOString()
+    };
+
+    setEmpresas(prev => prev.map(emp => {
+      if (emp.id === empresaId) {
+        return {
+          ...emp,
+          projetos: emp.projetos.map(proj => {
+            if (proj.id === projetoId) {
+              return { ...proj, squad: [...(proj.squad || []), membroComId], updatedAt: new Date().toISOString() };
+            }
+            return proj;
+          })
+        };
+      }
+      return emp;
+    }));
+  };
+
+  const atualizarMembroSquad = (empresaId, projetoId, squadId, dadosAtualizados) => {
+    console.log(`✏️ [Context] Atualizando membro squad ${squadId}`);
+    setEmpresas(prev => prev.map(emp => {
+      if (emp.id === empresaId) {
+        return {
+          ...emp,
+          projetos: emp.projetos.map(proj => {
+            if (proj.id === projetoId) {
+              return {
+                ...proj,
+                squad: proj.squad.map(sq => sq.id === squadId ? { ...sq, ...dadosAtualizados } : sq),
+                updatedAt: new Date().toISOString()
+              };
+            }
+            return proj;
+          })
+        };
+      }
+      return emp;
+    }));
+  };
+
+  const removerMembroSquad = (empresaId, projetoId, squadId) => {
+    console.log(`🗑️ [Context] Removendo membro squad ${squadId}`);
+    setEmpresas(prev => prev.map(emp => {
+      if (emp.id === empresaId) {
+        return {
+          ...emp,
+          projetos: emp.projetos.map(proj => {
+            if (proj.id === projetoId) {
+              return { ...proj, squad: proj.squad.filter(sq => sq.id !== squadId), updatedAt: new Date().toISOString() };
             }
             return proj;
           })
@@ -846,6 +1023,19 @@ export const FunctionProvider = ({ children }) => {
     saveVAF,
     updateFunction, // 🆕 NOVO
     getProximoNumeroFuncao, // 🆕 NOVO
+
+    // 🆕 AÇÕES - SQUAD DO PROJETO
+    adicionarMembroSquad,
+    atualizarMembroSquad,
+    removerMembroSquad,
+
+    // 🆕 AÇÕES - CARGOS E FUNCIONÁRIOS
+    adicionarCargo,
+    atualizarCargo,
+    removerCargo,
+    adicionarFuncionario,
+    atualizarFuncionario,
+    removerFuncionario,
 
     // Funções de Backup
     createBackup,

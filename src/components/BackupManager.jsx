@@ -41,36 +41,14 @@ const CreateBackupButton = ({
 
       let result;
 
-      // Tentar Electron (com diálogo de escolha de pasta)
-      if (window.electronAPI?.salvarBackupComDialogo) {
-        result = await window.electronAPI.salvarBackupComDialogo(dadosBackup);
+      const { backupAPI } = await import('../utils/webAdapter');
+      result = await backupAPI.save(dadosBackup);
 
-        if (result.success) {
-          setMessage(showPath ? `✅ Salvo em: ${result.filePath}` : '✅ Backup criado!');
-          onSuccess?.(result);
-        } else if (result.canceled) {
-          setMessage('⚠️ Cancelado pelo usuário');
-        } else {
-          throw new Error('Falha ao salvar');
-        }
-      }
-      // Fallback: Download do navegador
-      else {
-        const blob = new Blob([JSON.stringify(dadosBackup, null, 2)], {
-          type: 'application/json'
-        });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `backup-standardpoint-${new Date().toISOString().split('T')[0]}.json`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-
-        result = { success: true, filePath: 'Download iniciado' };
-        setMessage('✅ Backup baixado!');
+      if (result) {
+        setMessage(showPath ? `✅ Salvo em: ${result.filename}` : '✅ Backup criado!');
         onSuccess?.(result);
+      } else {
+        throw new Error('Falha ao salvar no servidor Node');
       }
 
     } catch (error) {
@@ -147,16 +125,21 @@ const BackupManager = ({ compact = false }) => {
   const [loading, setLoading] = useState(false);
 
   const loadBackups = async () => {
-    if (window.electronAPI && window.electronAPI.listarBackups) {
-      setLoading(true);
-      try {
-        const lista = await window.electronAPI.listarBackups();
-        setBackups(lista);
-      } catch (error) {
-        console.error('Erro ao carregar backups:', error);
-      } finally {
-        setLoading(false);
-      }
+    setLoading(true);
+    try {
+      const { backupAPI } = await import('../utils/webAdapter');
+      const lista = await backupAPI.list();
+      
+      const formatLista = lista.map(nome => ({
+        nome: nome,
+        tamanho: 1024,
+        dataModificacao: new Date().toISOString()
+      }));
+      setBackups(formatLista);
+    } catch (error) {
+      console.error('Erro ao carregar backups:', error);
+    } finally {
+      setLoading(false);
     }
   };
 

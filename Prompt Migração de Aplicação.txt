@@ -1,0 +1,401 @@
+# Prompt: Migração de Aplicação Electron para Web Pura
+
+## 📋 Contexto e Objetivo
+Migrar uma aplicação desktop Electron (React + Vite + Node.js) para uma aplicação web pura acessível via navegador. Nesta primeira fase, remover apenas o Electron e suas dependências, adaptando funcionalidades desktop para a web. A autenticação será tratada em fase posterior.
+
+---
+
+## 🗑️ REMOÇÕES OBRIGATÓRIAS
+
+### 1. Electron e Dependências Desktop
+- Remover completamente o framework Electron e todas as suas dependências do package.json
+- Remover scripts de build e configuração do Electron (electron-builder, electron-vite, etc.)
+- Eliminar código específico de APIs do Electron:
+ - `ipcRenderer`, `ipcMain` (comunicação entre processos)
+ - `BrowserWindow`, `app`, `shell` (APIs do main process)
+- Remover configurações de janela (tamanho, fullscreen, frameless, etc.)
+- Remover menu nativo da aplicação (Menu, MenuItem, contextMenu)
+- Remover tray icon (ícone na bandeja do sistema)
+- Remover notificações nativas do Electron
+- Remover atalhos de teclado globais (globalShortcut)
+- Remover funcionalidades de auto-update do Electron (autoUpdater)
+- **SINALIZAR** (com comentários TODO ou FIXME): Qualquer funcionalidade relacionada a integração com GitHub para updates automáticos
+
+### 2. Estrutura de Arquivos do Electron
+- Deletar pasta `electron/` inteira se existir
+- Deletar arquivo `main.js` ou `main.ts` do Electron
+- Deletar arquivo `preload.js` ou `preload.ts`
+- Remover `electron.vite.config.ts` ou similar
+- Remover ícones e assets específicos do Electron (icon.icns, icon.ico, etc.)
+
+---
+
+## 🛠️ IMPLEMENTAÇÕES OBRIGATÓRIAS
+
+### 1. Configuração de Ambiente (.env)
+
+**Frontend (.env):**
+VITE_API_URL=http://localhost:3001/api/v1
+PORT=3002
+plain
+Copy
+
+**Backend (.env):**
+PORT=3001
+CORS_ORIGINS=http://localhost:3002
+plain
+Copy
+
+### 2. Backend - Configuração do Servidor
+
+Atualizar `src/server.ts`:
+
+```typescript
+import express from 'express';
+import cors from 'cors';
+
+const app = express();
+
+app.use(cors({
+  origin: process.env.CORS_ORIGINS?.split(',') || ['http://localhost:3002'],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
+app.use(express.json());
+
+// Rota de health check
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok' });
+});
+
+// TODO: Adicionar middleware de autenticação em fase posterior
+// app.use('/api/v1', authMiddleware);
+
+// Suas rotas aqui...
+
+// Tratamento de erro global
+app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  console.error(err.stack);
+  res.status(500).json({ error: 'Erro interno do servidor' });
+});
+
+const PORT = process.env.PORT || 3001;
+app.listen(PORT, () => {
+  console.log(`API rodando na porta ${PORT}`);
+});
+3. Frontend - Configuração do Axios
+Criar src/services/api.ts:
+TypeScript
+Copy
+import axios from 'axios';
+
+const api = axios.create({
+  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:3001/api/v1',
+  withCredentials: true,
+  headers: {
+    'Content-Type': 'application/json'
+  },
+  timeout: 10000
+});
+
+api.interceptors.request.use(
+  (config) => {
+    console.log(`[API] ${config.method?.toUpperCase()} ${config.url}`);
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const { response } = error;
+
+    // TODO: Implementar tratamento de 401/403 em fase de autenticação
+    
+    // Retry exponencial para erros 500
+    if (response?.status >= 500 && !error.config.__retryCount) {
+      error.config.__retryCount = error.config.__retryCount || 0;
+      error.config.__retryCount += 1;
+      
+      if (error.config.__retryCount <= 3) {
+        const delay = Math.pow(2, error.config.__retryCount) * 1000;
+        await new Promise(resolve => setTimeout(resolve, delay));
+        return api(error.config);
+      }
+    }
+
+    return Promise.reject(error);
+  }
+);
+
+export default api;
+4. Frontend - Adaptação de Funcionalidades Electron para Web
+Criar src/utils/webAdapter.ts (substituindo funcionalidades do Electron):
+TypeScript
+Copy
+// Notificações: usar Web Notifications API
+export const showNotification = (title: string, body: string): void => {
+  if (!('Notification' in window)) {
+    console.warn('Notificações não suportadas neste navegador');
+    return;
+  }
+
+  if (Notification.permission === 'granted') {
+    new Notification(title, { body });
+  } else if (Notification.permission !== 'denied') {
+    Notification.requestPermission().then(permission => {
+      if (permission === 'granted') {
+        new Notification(title, { body });
+      }
+    });
+  }
+};
+
+// Acesso a arquivos: usar input file
+export const selectFile = async (options?: { accept?: string; multiple?: boolean }): Promise<FileList | null> => {
+  return new Promise((resolve) => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    if (options?.accept) {
+      input.accept = options.accept;
+    }
+    if (options?.multiple) {
+      input.multiple = true;
+    }
+    input.onchange = (e) => {
+      const files = (e.target as HTMLInputElement).files;
+      resolve(files);
+    };
+    input.click();
+  });
+};
+
+// Salvar arquivo: usar download do navegador
+export const downloadFile = (content: Blob | string, filename: string): void => {
+  const blob = content instanceof Blob ? content : new Blob([content], { type: 'text/plain' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+};
+
+// Armazenamento local: usar localStorage (ou sessionStorage para dados temporários)
+export const storage = {
+  get: (key: string): string | null => localStorage.getItem(key),
+  set: (key: string, value: string): void => localStorage.setItem(key, value),
+  remove: (key: string): void => localStorage.removeItem(key),
+  clear: (): void => localStorage.clear()
+};
+
+// Clipboard: usar Clipboard API do navegador
+export const copyToClipboard = async (text: string): Promise<boolean> => {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch (err) {
+    console.error('Falha ao copiar:', err);
+    return false;
+  }
+};
+
+// Abrir link externo: usar window.open
+export const openExternal = (url: string): void => {
+  window.open(url, '_blank', 'noopener,noreferrer');
+};
+
+// Informações do sistema: usar navigator e window
+export const getSystemInfo = () => ({
+  userAgent: navigator.userAgent,
+  language: navigator.language,
+  platform: navigator.platform,
+  screen: {
+    width: window.screen.width,
+    height: window.screen.height
+  },
+  online: navigator.onLine
+});
+
+// TODO: Menu nativo - substituir por menu customizado em React
+// TODO: Atalhos de teclado - usar react-hotkeys-hook ou event listeners
+// TODO: Tray icon - não aplicável na web, remover funcionalidade ou mover para UI
+5. Frontend - Adaptação do App Principal
+Atualizar src/App.tsx:
+TypeScript
+Copy
+import React from 'react';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import Dashboard from './pages/Dashboard';
+import Settings from './pages/Settings';
+// TODO: Importar telas de login quando implementar autenticação
+
+const App: React.FC = () => {
+  return (
+    <BrowserRouter>
+      <Routes>
+        {/* TODO: Adicionar rotas públicas de login em fase posterior */}
+        <Route path="/" element={<Dashboard />} />
+        <Route path="/settings" element={<Settings />} />
+        {/* Suas outras rotas... */}
+        <Route path="*" element={<div>Página não encontrada</div>} />
+      </Routes>
+    </BrowserRouter>
+  );
+};
+
+export default App;
+6. Frontend - Componente de Menu (Substituir Menu Nativo)
+Criar src/components/AppMenu.tsx:
+TypeScript
+Copy
+import React, { useState } from 'react';
+import { openExternal } from '../utils/webAdapter';
+
+export const AppMenu: React.FC = () => {
+  const [isOpen, setIsOpen] = useState(false);
+
+  // TODO: Adaptar itens do menu nativo do Electron para este menu web
+  const menuItems = [
+    { label: 'Arquivo', submenu: [
+      { label: 'Novo', action: () => console.log('Novo') },
+      { label: 'Abrir', action: () => console.log('Abrir') },
+      { label: 'Sair', action: () => window.close() }
+    ]},
+    { label: 'Editar', submenu: [
+      { label: 'Desfazer', action: () => document.execCommand('undo') },
+      { label: 'Refazer', action: () => document.execCommand('redo') }
+    ]},
+    { label: 'Ajuda', submenu: [
+      { label: 'Documentação', action: () => openExternal('https://docs.seusite.com') },
+      { label: 'Sobre', action: () => console.log('Sobre') }
+    ]}
+  ];
+
+  return (
+    <nav style={{ display: 'flex', background: '#333', color: '#fff', padding: '0.5rem' }}>
+      {menuItems.map((item, idx) => (
+        <div key={idx} style={{ position: 'relative', marginRight: '1rem' }}>
+          <button 
+            onClick={() => setIsOpen(isOpen === idx ? null : idx)}
+            style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer' }}
+          >
+            {item.label}
+          </button>
+          {isOpen === idx && (
+            <div style={{ 
+              position: 'absolute', 
+              top: '100%', 
+              left: 0, 
+              background: '#444', 
+              minWidth: '150px',
+              zIndex: 1000
+            }}>
+              {item.submenu.map((sub, subIdx) => (
+                <div 
+                  key={subIdx}
+                  onClick={() => { sub.action(); setIsOpen(null); }}
+                  style={{ padding: '0.5rem', cursor: 'pointer', hover: { background: '#555' } }}
+                >
+                  {sub.label}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      ))}
+    </nav>
+  );
+};
+7. Frontend - Hook para Atalhos de Teclado (Substituir globalShortcut)
+Criar src/hooks/useKeyboardShortcuts.ts:
+TypeScript
+Copy
+import { useEffect } from 'react';
+
+interface Shortcut {
+  key: string;
+  ctrl?: boolean;
+  shift?: boolean;
+  alt?: boolean;
+  action: () => void;
+}
+
+export const useKeyboardShortcuts = (shortcuts: Shortcut[]) => {
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      shortcuts.forEach(shortcut => {
+        const keyMatch = event.key.toLowerCase() === shortcut.key.toLowerCase();
+        const ctrlMatch = shortcut.ctrl ? event.ctrlKey : !event.ctrlKey;
+        const shiftMatch = shortcut.shift ? event.shiftKey : !event.shiftKey;
+        const altMatch = shortcut.alt ? event.altKey : !event.altKey;
+
+        if (keyMatch && ctrlMatch && shiftMatch && altMatch) {
+          event.preventDefault();
+          shortcut.action();
+        }
+      });
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [shortcuts]);
+};
+
+// Exemplo de uso:
+// useKeyboardShortcuts([
+//   { key: 's', ctrl: true, action: () => console.log('Salvar') },
+//   { key: 'o', ctrl: true, action: () => console.log('Abrir') },
+//   { key: 'F5', action: () => console.log('Atualizar') }
+// ]);
+📝 CHECKLIST DE IMPLEMENTAÇÃO
+Fase 1: Preparação
+[ ] Backup do projeto atual
+[ ] Criar branch migracao/web-pura
+[ ] Listar todas as funcionalidades Electron-dependentes
+Fase 2: Remoções
+[ ] Remover Electron e dependências relacionadas do package.json (electron, electron-builder, @electron/remote, etc.)
+[ ] Remover scripts de build do Electron do package.json
+[ ] Deletar pasta electron/ ou arquivos de main process
+[ ] Deletar main.js/main.ts do Electron
+[ ] Deletar preload.js/preload.ts
+[ ] Remover electron.vite.config.ts ou similar
+[ ] Remover assets específicos do Electron (ícones .icns, .ico)
+Fase 3: Backend
+[ ] Configurar CORS para aceitar requisições do frontend web
+[ ] Remover código específico de comunicação com Electron (ipc)
+[ ] Garantir que API funcione independente do frontend
+Fase 4: Frontend
+[ ] Atualizar configuração do Axios (remover integrações Electron)
+[ ] Criar webAdapter.ts com substitutos para APIs do Electron
+[ ] Substituir ipcRenderer por chamadas HTTP normais
+[ ] Substituir notificações nativas por Web Notifications API
+[ ] Substituir acesso a arquivos por input file e File API
+[ ] Substituir menu nativo por componente React customizado
+[ ] Substituir atalhos globais por hook de keyboard events
+[ ] Adaptar App.tsx para rodar no navegador
+[ ] Remover qualquer referência a window.electron ou require('electron')
+Fase 5: Testes
+[ ] Testar aplicação rodando no navegador (npm run dev)
+[ ] Testar todas as funcionalidades que foram adaptadas
+[ ] Verificar se não há erros de referência ao Electron no console
+[ ] Testar em diferentes navegadores (Chrome, Firefox, Edge)
+Fase 6: Sinalizações (TODOs)
+[ ] Sinalizar código relacionado a auto-update do Electron (FIXME: Revisar auto-update)
+[ ] Sinalizar onde deverá entrar autenticação (TODO: Implementar login)
+[ ] Sinalizar funcionalidades que precisam de revisão posterior
+[ ] Atualizar README com instruções de execução web
+🔧 DEPENDÊNCIAS NPM
+Remover do projeto:
+bash
+Copy
+npm uninstall electron electron-builder @electron/remote electron-vite electron-devtools-installer
+Instalar/atualizar no Frontend (se necessário):
+bash
+Copy
+npm install axios

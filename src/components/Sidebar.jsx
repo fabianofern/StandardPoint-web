@@ -6,8 +6,7 @@ const Sidebar = ({ currentPage, onNavigate }) => {
   const { empresaAtualObj } = useFunctionContext();
   const { currentUser, logout } = useAuth();
 
-  // Estado para controlar se o sidebar está fixo ou não
-  const [isPinned, setIsPinned] = useState(true);
+  // Estado para controlar o sidebar no mobile
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
 
@@ -25,20 +24,27 @@ const Sidebar = ({ currentPage, onNavigate }) => {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
+  // Estado para controlar submenus abertos
+  const [openMenus, setOpenMenus] = useState({
+    empresa: false,
+    projetos: false
+  });
+
   // Função para navegação
   const handleNavigate = (page) => {
     if (onNavigate) {
       onNavigate(page);
-      if (isMobile && !isPinned) {
+      if (isMobile) {
         setIsMobileOpen(false);
       }
     }
   };
 
-  // Toggle do pin
-  const togglePin = () => {
-    setIsPinned(!isPinned);
+  const toggleMenu = (menu) => {
+    setOpenMenus(prev => ({ ...prev, [menu]: !prev[menu] }));
   };
+
+
 
   // Toggle mobile menu
   const toggleMobileMenu = () => {
@@ -81,7 +87,7 @@ const Sidebar = ({ currentPage, onNavigate }) => {
     },
 
     sidebarContainer: {
-      position: isPinned || !isMobile ? 'fixed' : 'absolute',
+      position: !isMobile ? 'fixed' : 'absolute',
       left: isMobile && !isMobileOpen ? '-280px' : '0',
       top: 0,
       height: '100vh',
@@ -100,41 +106,9 @@ const Sidebar = ({ currentPage, onNavigate }) => {
       overflow: 'hidden',
     },
 
-    // Botão de fixar/desfixar
-    pinButton: {
-      position: 'absolute',
-      top: '1rem',
-      right: isPinned ? '1rem' : '-40px',
-      backgroundColor: 'rgba(255, 255, 255, 0.2)',
-      border: 'none',
-      borderRadius: '50%',
-      width: '32px',
-      height: '32px',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      cursor: 'pointer',
-      color: 'white',
-      transition: 'all 0.3s ease',
-      zIndex: 10,
-    },
 
-    pinButtonUnpinned: {
-      position: 'absolute',
-      top: '1rem',
-      right: '-40px',
-      backgroundColor: '#00BFFF',
-      border: 'none',
-      borderRadius: '50%',
-      width: '32px',
-      height: '32px',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      cursor: 'pointer',
-      color: 'white',
-      boxShadow: '2px 0 5px rgba(0,0,0,0.2)',
-    },
+
+
 
     logoContainer: {
       padding: '1.5rem',
@@ -171,6 +145,53 @@ const Sidebar = ({ currentPage, onNavigate }) => {
       height: '1px',
       backgroundColor: 'rgba(255, 255, 255, 0.2)',
       margin: '0.5rem 0', // Margem reduzida
+    },
+
+    submenuContainer: {
+      overflow: 'hidden',
+      transition: 'all 0.3s ease',
+      paddingLeft: '1.5rem',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '2px',
+      borderLeft: '1px solid rgba(255, 255, 255, 0.15)',
+      marginLeft: '1.5rem',
+      marginTop: '2px',
+      marginBottom: '4px',
+    },
+
+    subNavItem: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '0.75rem',
+      padding: '0.5rem 1rem',
+      color: 'rgba(255, 255, 255, 0.8)',
+      textDecoration: 'none',
+      borderRadius: '6px',
+      transition: 'all 0.2s',
+      border: 'none',
+      backgroundColor: 'transparent',
+      fontSize: '13px',
+      cursor: 'pointer',
+      textAlign: 'left',
+      fontFamily: 'inherit',
+      fontWeight: '500',
+    },
+
+    subNavItemActive: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '0.75rem',
+      padding: '0.5rem 1rem',
+      backgroundColor: 'rgba(255, 255, 255, 0.15)',
+      color: 'white',
+      textDecoration: 'none',
+      borderRadius: '6px',
+      fontWeight: 'bold',
+      border: 'none',
+      cursor: 'pointer',
+      textAlign: 'left',
+      fontFamily: 'inherit',
     },
 
     navItem: {
@@ -392,18 +413,7 @@ const Sidebar = ({ currentPage, onNavigate }) => {
       <div style={styles.sidebarContainer}>
         <div style={styles.sidebar}>
 
-          {/* Botão de fixar/desfixar (visível apenas em desktop) */}
-          {!isMobile && (
-            <button
-              style={isPinned ? styles.pinButton : styles.pinButtonUnpinned}
-              onClick={togglePin}
-              title={isPinned ? 'Desfixar sidebar' : 'Fixar sidebar'}
-            >
-              <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
-                {isPinned ? 'push_pin' : 'push_pin'}
-              </span>
-            </button>
-          )}
+
 
           {/* Logo */}
           <div style={styles.logoContainer}>
@@ -446,87 +456,183 @@ const Sidebar = ({ currentPage, onNavigate }) => {
               )}
             </button>
 
-            {/* Minhas Empresas */}
-            <button
-              onClick={() => handleNavigate('minhas-empresas')}
-              style={isActive('minhas-empresas') ? styles.navItemActive : styles.navItem}
-              onMouseEnter={(e) => {
-                if (!isActive('minhas-empresas')) {
+            {/* Menu Empresa com Submenus */}
+            <div>
+              <button
+                onClick={() => toggleMenu('empresa')}
+                style={styles.navItem}
+                onMouseEnter={(e) => {
                   e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.15)';
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (!isActive('minhas-empresas')) {
+                }}
+                onMouseLeave={(e) => {
                   e.currentTarget.style.backgroundColor = 'transparent';
-                }
-              }}
-            >
-              <span className="material-symbols-outlined">apartment</span>
-              <span>Minhas Empresas</span>
-              {empresaAtualObj && (
-                <span style={styles.empresaBadge}>
-                  {empresaAtualObj.nome?.substring(0, 2).toUpperCase() || 'ME'}
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flex: 1 }}>
+                  <span className="material-symbols-outlined">apartment</span>
+                  <span>Empresa</span>
+                </div>
+                <span className="material-symbols-outlined" style={{ fontSize: '18px', opacity: 0.7 }}>
+                  {openMenus.empresa ? 'expand_more' : 'chevron_right'}
                 </span>
-              )}
-            </button>
+              </button>
 
-            {/* Cadastro de Empresas */}
-            <button
-              onClick={() => handleNavigate('empresa')}
-              style={isActive('empresa') ? styles.navItemActive : styles.navItem}
-              onMouseEnter={(e) => {
-                if (!isActive('empresa')) {
-                  e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.15)';
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (!isActive('empresa')) {
-                  e.currentTarget.style.backgroundColor = 'transparent';
-                }
-              }}
-              disabled={!empresaAtualObj}
-            >
-              <span className="material-symbols-outlined">settings</span>
-              <span>Configurações da Empresa</span>
-              {!empresaAtualObj && (
-                <span style={styles.disabledBadge} title="Selecione uma empresa primeiro">
-                  <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>
-                    lock
-                  </span>
-                </span>
-              )}
-            </button>
+              {openMenus.empresa && (
+                <div style={styles.submenuContainer}>
+                  {/* Visualizar Empresas */}
+                  <button
+                    onClick={() => handleNavigate('minhas-empresas')}
+                    style={isActive('minhas-empresas') ? styles.subNavItemActive : styles.subNavItem}
+                    onMouseEnter={(e) => {
+                      if (!isActive('minhas-empresas')) e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.1)';
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!isActive('minhas-empresas')) e.currentTarget.style.backgroundColor = 'transparent';
+                    }}
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>visibility</span>
+                    <span>Visualizar Empresas</span>
+                    {empresaAtualObj && (
+                      <span style={styles.empresaBadge}>
+                        {empresaAtualObj.nome?.substring(0, 2).toUpperCase() || 'ME'}
+                      </span>
+                    )}
+                  </button>
 
-            {/* Projetos */}
-            <button
-              onClick={() => handleNavigate('projetos')}
-              style={isActive('projetos') ? styles.navItemActive : styles.navItem}
-              onMouseEnter={(e) => {
-                if (!isActive('projetos')) {
-                  e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.15)';
+                  {/* Cadastrar Empresas (Anteriormente Configurações) */}
+                  <button
+                    onClick={() => handleNavigate('empresa', { mode: 'new' })}
+                    style={isActive('empresa') ? styles.subNavItemActive : styles.subNavItem}
+                    onMouseEnter={(e) => {
+                      if (!isActive('empresa')) e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.1)';
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!isActive('empresa')) e.currentTarget.style.backgroundColor = 'transparent';
+                    }}
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>add_business</span>
+                    <span>Cadastrar Empresas</span>
+                  </button>
+
+                  {/* Funcionários (Novo - Vazio por enquanto) */}
+                  <button
+                    onClick={() => handleNavigate('funcionarios')}
+                    style={isActive('funcionarios') ? styles.subNavItemActive : styles.subNavItem}
+                    onMouseEnter={(e) => {
+                      if (!isActive('funcionarios')) e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.1)';
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!isActive('funcionarios')) e.currentTarget.style.backgroundColor = 'transparent';
+                    }}
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>badge</span>
+                    <span>Funcionários</span>
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* ========================================================= */}
+            {/* NOVO: AGRUPADOR DE PROJETOS COMPLETO (Listagem, Squad, Estimativas) */}
+            {/* ========================================================= */}
+            <div style={styles.navGroup}>
+              <button
+                onClick={() => toggleMenu('projetos')}
+                style={
+                  (isActive('projetos') || isActive('projeto-squad') || isActive('projeto-estimativas'))
+                    ? styles.navItemActive
+                    : styles.navItem
                 }
-              }}
-              onMouseLeave={(e) => {
-                if (!isActive('projetos')) {
-                  e.currentTarget.style.backgroundColor = 'transparent';
-                }
-              }}
-              disabled={!empresaAtualObj}
-            >
-              <span className="material-symbols-outlined">folder</span>
-              <span>Projetos</span>
-              {!empresaAtualObj ? (
-                <span style={styles.disabledBadge} title="Selecione uma empresa primeiro">
-                  <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>
-                    lock
+                onMouseEnter={(e) => {
+                  if (!isActive('projetos') && !isActive('projeto-squad') && !isActive('projeto-estimativas')) {
+                    e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.15)';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!isActive('projetos') && !isActive('projeto-squad') && !isActive('projeto-estimativas')) {
+                    e.currentTarget.style.backgroundColor = 'transparent';
+                  }
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <span className="material-symbols-outlined">folder</span>
+                  <span>Projetos</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  {/* Badges */}
+                  {!empresaAtualObj ? (
+                    <span style={styles.disabledBadge} title="Selecione uma empresa primeiro">
+                      <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>lock</span>
+                    </span>
+                  ) : empresaAtualObj.projetos?.length > 0 ? (
+                    <span style={styles.projetoBadge} title={`${empresaAtualObj.projetos.length} projeto(s)`}>
+                      {empresaAtualObj.projetos.length}
+                    </span>
+                  ) : null}
+                  {/* Seta do Dropdown */}
+                  <span
+                    className="material-symbols-outlined"
+                    style={{
+                      fontSize: '20px',
+                      transition: 'transform 0.3s ease',
+                      transform: openMenus.projetos ? 'rotate(180deg)' : 'rotate(0deg)'
+                    }}
+                  >
+                    expand_more
                   </span>
-                </span>
-              ) : empresaAtualObj.projetos?.length > 0 ? (
-                <span style={styles.projetoBadge} title={`${empresaAtualObj.projetos.length} projeto(s)`}>
-                  {empresaAtualObj.projetos.length}
-                </span>
-              ) : null}
-            </button>
+                </div>
+              </button>
+
+              {/* Submenus de Projetos */}
+              {openMenus.projetos && (
+                <div style={styles.submenuContainer}>
+                  {/* 1. Gerenciar Projetos */}
+                  <button
+                    onClick={() => handleNavigate('projetos')}
+                    style={isActive('projetos') ? styles.subNavItemActive : styles.subNavItem}
+                    onMouseEnter={(e) => {
+                      if (!isActive('projetos')) e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.1)';
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!isActive('projetos')) e.currentTarget.style.backgroundColor = 'transparent';
+                    }}
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>list_alt</span>
+                    <span>Gerenciar Projetos</span>
+                  </button>
+
+                  {/* 2. Squad (Time do Projeto) */}
+                  <button
+                    onClick={() => handleNavigate('projeto-squad')}
+                    style={isActive('projeto-squad') ? styles.subNavItemActive : styles.subNavItem}
+                    onMouseEnter={(e) => {
+                      if (!isActive('projeto-squad')) e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.1)';
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!isActive('projeto-squad')) e.currentTarget.style.backgroundColor = 'transparent';
+                    }}
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>groups</span>
+                    <span>Squad do Projeto</span>
+                  </button>
+
+                  {/* 3. Estimativas e Prazos */}
+                  <button
+                    onClick={() => handleNavigate('projeto-estimativas')}
+                    style={isActive('projeto-estimativas') ? styles.subNavItemActive : styles.subNavItem}
+                    onMouseEnter={(e) => {
+                      if (!isActive('projeto-estimativas')) e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.1)';
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!isActive('projeto-estimativas')) e.currentTarget.style.backgroundColor = 'transparent';
+                    }}
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>analytics</span>
+                    <span>Estimativas e Prazos</span>
+                  </button>
+                </div>
+              )}
+            </div>
 
             {/* Funções */}
             <button
@@ -622,9 +728,6 @@ const Sidebar = ({ currentPage, onNavigate }) => {
 
             {/* Controle de Acessos - Master/Admin apenas */}
             {(empresaAtualObj && (empresaAtualObj.role === 'Master' || empresaAtualObj.role === 'Administrador' || true)) && (
-              /* Nota: A lógica real de permissão virá do AuthContext no App.jsx, 
-                 mas aqui deixamos visualmente disponível para quem tem acesso. 
-                 O AuthProvider será integrado no App.jsx */
               <button
                 onClick={() => handleNavigate('controle-acessos')}
                 style={isActive('controle-acessos') ? styles.navItemActive : styles.navItem}

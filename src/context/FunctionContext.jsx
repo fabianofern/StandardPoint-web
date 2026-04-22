@@ -115,10 +115,27 @@ export const FunctionProvider = ({ children }) => {
       try {
         console.log('📂 [Context] Carregando dados do sistema...');
         let loadedData = null;
-        console.log('💻 [Context] Usando localStorage');
-        const stored = localStorage.getItem('standardpoint-data');
-        if (stored) {
-          loadedData = JSON.parse(stored);
+
+        // 1 - Tentar carregar do Backend (SQLite)
+        try {
+          console.log('🌐 [Context] Buscando estado atual no servidor...');
+          const { backupAPI } = await import('../utils/webAdapter');
+          const serverData = await backupAPI.load('ESTADO_ATUAL_DB.json');
+          if (serverData && serverData.empresas) {
+            console.log('✅ [Context] Dados carregados do servidor com sucesso');
+            loadedData = serverData;
+          }
+        } catch (serverErr) {
+          console.warn('⚠️ [Context] Falha ao carregar do servidor, tentando localStorage...', serverErr);
+        }
+
+        // 2 - Fallback para localStorage
+        if (!loadedData) {
+          console.log('💻 [Context] Usando localStorage como fallback');
+          const stored = localStorage.getItem('standardpoint-data');
+          if (stored) {
+            loadedData = JSON.parse(stored);
+          }
         }
 
         if (!mounted) return;
@@ -244,8 +261,17 @@ export const FunctionProvider = ({ children }) => {
           version: '1.4.0'
         };
 
+        // Salvar localmente
         localStorage.setItem('standardpoint-data', JSON.stringify(dataToSave));
-        console.log('✅ [Context] Dados salvos via localStorage');
+        
+        // Salvar no servidor (Auto-sync)
+        try {
+          const { backupAPI } = await import('../utils/webAdapter');
+          await backupAPI.save(dataToSave, 'ESTADO_ATUAL_DB.json');
+          console.log('✅ [Context] Dados sincronizados com o servidor');
+        } catch (serverErr) {
+          console.error('⚠️ [Context] Erro ao sincronizar com servidor:', serverErr);
+        }
 
         setLastSaved(dataToSave.lastModified);
         setSaveStatus('saved');

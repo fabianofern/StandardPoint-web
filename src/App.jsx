@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { FunctionProvider, useFunctionContext } from './context/FunctionContext';
-import { AuthProvider, useAuth } from './context/AuthContext';
-import LoginScreen from './components/LoginScreen';
-import AccessControl from './components/AccessControl';
+import ProtectedLayout from './components/ProtectedLayout';
+import { useAuthStore } from './stores/authStore';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import StatsCards from './components/StatsCards';
@@ -102,7 +101,7 @@ function AppContent() {
     saveVAF,
     adicionarEmpresa
   } = useFunctionContext();
-  const { currentUser, loading: authLoading } = useAuth(); // Hook de autenticação
+  const { user: currentUser, isChecking: authLoading } = useAuthStore();
   const { currentPage, params, navigate } = useHashRouter();
   const [isCreatingNewEmpresa, setIsCreatingNewEmpresa] = useState(false);
 
@@ -163,21 +162,8 @@ function AppContent() {
     }
   }, [currentPage, empresaAtualObj, loading, authLoading, currentUser, isCreatingNewEmpresa, empresas.length, navigate]);
 
-  // 4. Lógica de Onboarding Automático (Zero Data)
-  useEffect(() => {
-    if (!loading && !authLoading && currentUser && empresas.length === 0) {
-      console.log('🚀 [App] Primeiro acesso detectado. Criando empresa padrão automaticamente...');
-      adicionarEmpresa({
-        nome: 'Minha Empresa',
-        valorPF: 850.00,
-        hcpp: 20,
-        tecnologias: [],
-        experienciaTime: [],
-        faseCiclo: 'codificacao',
-        timeProjeto: [],
-      });
-    }
-  }, [loading, authLoading, currentUser, empresas.length, adicionarEmpresa]);
+  // 4. Lógica de Onboarding Automático - REMOVIDA PARA EVITAR DUPLICIDADE EM MÚLTIPLOS BROWSERS
+  // Se o usuário desejar criar uma empresa, ele deve fazê-lo manualmente ou via importação.
 
   const handleNavigate = useCallback((page, navParams = {}) => {
     console.log('🔗 [App] Navegando manualmente para:', page, navParams);
@@ -227,9 +213,9 @@ function AppContent() {
     );
   }
 
-  // 2. Tela de Login (se não autenticado)
+  // 2. Tela de Login / Bloqueio (Redirecionamento será feito via Axios Interceptors no ProtectedLayout)
   if (!currentUser) {
-    return <LoginScreen />;
+    return null;
   }
 
   // 3. Loading de Dados da Aplicação (Empresas, etc)
@@ -256,29 +242,8 @@ function AppContent() {
     );
   }
 
-  // 4. Lógica de Onboarding Automático (Zero Data)
-  if (empresas.length === 0) {
-    return (
-      <div style={{
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        minHeight: '100vh',
-        backgroundColor: '#f6f6f8',
-        flexDirection: 'column',
-        gap: '1rem',
-      }}>
-        <span className="material-symbols-outlined" style={{
-          fontSize: '48px',
-          color: '#1246e2',
-          animation: 'spin 1s linear infinite'
-        }}>
-          sync
-        </span>
-        <p style={{ color: '#64748b' }}>Configurando seu primeiro acesso...</p>
-      </div>
-    );
-  }
+  // Removida a tela de bloqueio para empresas.length === 0
+  // O componente DashboardContent já trata o caso de zero empresas exibindo as opções de criação.
 
   // Fluxo normal com empresa selecionada ou navegação para lista de empresas
   return (
@@ -294,14 +259,17 @@ function AppContent() {
       />
 
       {/* ========== CORREÇÃO: CONTAINER PRINCIPAL SEM MARGIN ========== */}
-      <div style={{
-        flex: 1,
-        display: 'flex',
-        flexDirection: 'column',
-        transition: 'margin-left 0.3s ease',
-        marginLeft: '280px', // Apenas o conteúdo principal tem margin
-        overflowX: 'hidden', // Evita scroll na janela toda
-      }}>
+      <div 
+        className="main-app-container"
+        style={{
+          flex: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          transition: 'margin-left 0.3s ease',
+          marginLeft: '280px', // Apenas o conteúdo principal tem margin
+          overflowX: 'hidden', // Evita scroll na janela toda
+        }}
+      >
         {/* Header agora faz parte do fluxo, não fixo */}
         <Header />
 
@@ -332,7 +300,6 @@ function AppContent() {
           />}
           {currentPage === 'limpeza-dados' && <DataCleaningContent />}
           {currentPage === 'backups' && <BackupsContent onNavigate={handleNavigate} />}
-          {currentPage === 'controle-acessos' && <AccessControl />}
           {currentPage === 'relatorios' && <Reports />}
           {currentPage === 'funcionarios' && <FuncionariosModule />}
           {currentPage === 'projeto-squad' && <SquadProjeto />}
@@ -1144,11 +1111,11 @@ function ComingSoon({ pageName, onBackToDashboard }) {
 // ====================== APP PRINCIPAL ======================
 function App() {
   return (
-    <AuthProvider>
-      <FunctionProvider>
+    <FunctionProvider>
+      <ProtectedLayout>
         <AppContent />
-      </FunctionProvider>
-    </AuthProvider>
+      </ProtectedLayout>
+    </FunctionProvider>
   );
 }
 

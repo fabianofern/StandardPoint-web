@@ -5,15 +5,21 @@ import ReportGerencial from './ReportGerencial';
 import ReportAnalitico from './ReportAnalitico';
 import ReportDetalhado from './ReportDetalhado';
 import ReportCompleto from './ReportCompleto';
+import PrintableReport from './PrintableReport';
+// Importação dinâmica dentro da função para evitar erros de SSR/Build
 
 const Reports = () => {
     const [activeTab, setActiveTab] = useState('gerencial');
     const [filteredData, setFilteredData] = useState([]);
+    const [isExportingPDF, setIsExportingPDF] = useState(false);
+    const reportRef = React.useRef();
     const { empresaAtualObj, projetoAtualObj, totals, funcoes } = useFunctionContext();
 
     // Função auxiliar para download de CSV
     const downloadCSV = (content, filename) => {
-        const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
+        // Adiciona BOM (Byte Order Mark) para que o Excel identifique UTF-8 corretamente
+        const bom = new Uint8Array([0xEF, 0xBB, 0xBF]);
+        const blob = new Blob([bom, content], { type: 'text/csv;charset=utf-8;' });
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
@@ -24,7 +30,51 @@ const Reports = () => {
     };
 
     const handleExportPDF = () => {
-        window.print();
+        if (!projetoAtualObj || isExportingPDF) return;
+
+        setIsExportingPDF(true);
+        
+        // Pequeno delay para garantir que o componente PrintableReport 
+        // tenha processado qualquer mudança de estado/renderização
+        setTimeout(() => {
+            const element = document.getElementById('printable-report-content');
+            
+            if (!element) {
+                console.error('Elemento do relatório não encontrado!');
+                setIsExportingPDF(false);
+                return;
+            }
+
+            import('html2pdf.js').then((html2pdfModule) => {
+                const html2pdf = html2pdfModule.default;
+                const opt = {
+                    margin: [10, 10, 10, 10],
+                    filename: `Relatorio_${activeTab}_${projetoAtualObj.nome.replace(/\s+/g, '_')}.pdf`,
+                    image: { type: 'jpeg', quality: 0.98 },
+                    html2canvas: { 
+                        scale: 2, 
+                        useCORS: true, 
+                        logging: false,
+                        letterRendering: true,
+                        scrollY: 0,
+                        scrollX: 0,
+                        backgroundColor: '#ffffff'
+                    },
+                    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+                    pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
+                };
+
+                html2pdf().set(opt).from(element).save().then(() => {
+                    setIsExportingPDF(false);
+                }).catch(err => {
+                    console.error('Erro ao gerar PDF:', err);
+                    setIsExportingPDF(false);
+                });
+            }).catch(err => {
+                console.error('Erro ao carregar html2pdf:', err);
+                setIsExportingPDF(false);
+            });
+        }, 800);
     };
 
     const handleExportCSV = () => {
@@ -126,6 +176,7 @@ const Reports = () => {
                     onExportPDF={handleExportPDF}
                     onExportCSV={handleExportCSV}
                     activeTab={activeTab}
+                    isExportingPDF={isExportingPDF}
                 />
 
                 <div style={styles.tabsContainer}>
@@ -169,6 +220,32 @@ const Reports = () => {
                 ) : (
                     renderContent()
                 )}
+            </div>
+
+            {/* 
+                FLASH RENDER: Template para PDF. 
+                Durante a exportação, ele fica NO TOPO de tudo para garantir a captura.
+                Nos outros momentos, fica fora da área visível.
+            */}
+            <div style={{ 
+                position: 'fixed', 
+                top: isExportingPDF ? 0 : '-20000px', 
+                left: 0,
+                width: '100%',
+                height: '100%',
+                zIndex: 99999, 
+                backgroundColor: 'white',
+                overflow: 'auto',
+                visibility: isExportingPDF ? 'visible' : 'hidden'
+            }}>
+                <div style={{ width: '750px', margin: '0 auto' }}>
+                    <PrintableReport 
+                        key={activeTab} // FORÇA O REACT A RECARREGAR O COMPONENTE
+                        reportRef={reportRef} 
+                        activeTab={activeTab} 
+                        filteredData={filteredData} 
+                    />
+                </div>
             </div>
         </div>
     );

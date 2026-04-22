@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useFunctionContext } from '../context/FunctionContext';
-import { useAuth } from '../context/AuthContext';
+import { useAuthStore } from '../stores/authStore';
 
 const Sidebar = ({ currentPage, onNavigate }) => {
   const { empresaAtualObj } = useFunctionContext();
-  const { currentUser, logout } = useAuth();
+  const { user: currentUser, logout } = useAuthStore();
 
   // Estado para controlar o sidebar no mobile
   const [isMobileOpen, setIsMobileOpen] = useState(false);
@@ -410,7 +410,7 @@ const Sidebar = ({ currentPage, onNavigate }) => {
         </span>
       </button>
 
-      <div style={styles.sidebarContainer}>
+      <div style={styles.sidebarContainer} className="no-print">
         <div style={styles.sidebar}>
 
 

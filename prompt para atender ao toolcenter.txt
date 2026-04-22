@@ -1,0 +1,362 @@
+## 📋 Contexto
+Aplicação web React+Vite+Node.js precisa integrar ao SSO do ToolCenter. Usar JavaScript (.js/.jsx), não TypeScript. Banco ainda é LocalStorage/simulado, mas estrutura deve estar pronta para PostgreSQL (colunas corretas).
+
+---
+
+## 🗑️ REMOÇÕES
+
+- Deletar todas as telas: Login, Cadastro, Recuperar Senha
+- Deletar componentes: formulários de autenticação, PrivateRoute antigo
+- Remover estado de autenticação local (contexts/stores antigos)
+- Remover lógicas de hash de senha, JWT local, refresh tokens
+
+---
+
+## 🛠️ IMPLEMENTAÇÕES
+
+### 1. Variáveis de Ambiente (.env)
+
+**Frontend (.env):**
+VITE_API_URL=http://localhost:3001/api/v1
+VITE_TOOLCENTER_URL=http://localhost:3000
+PORT=3002
+plain
+Copy
+
+**Backend (.env):**
+PORT=3001
+TOOLCENTER_JWKS_URL=http://127.0.0.1:3000/.well-known/jwks.json
+TOOLCENTER_LOGIN_URL=http://127.0.0.1:3000/login
+CORS_ORIGINS=http://localhost:3000,http://localhost:3002
+TOOL_SLUG=sua-ferramenta-slug
+BYPASS_AUTH=false
+plain
+Copy
+
+### 2. Backend - Middleware ToolCenter
+
+Criar `src/server/middleware/toolcenterAuth.js`:
+
+```javascript
+const jwt = require('jsonwebtoken');
+const jwksClient = require('jwks-rsa');
+
+const client = jwksClient({
+  jwksUri: process.env.TOOLCENTER_JWKS_URL,
+  cache: true,
+  cacheMaxAge: 3600000,
+  timeout: 5000,
+  rateLimit: true,
+  jwksRequestsPerMinute: 10
+});
+
+const getSigningKey = (header, callback) => {
+  if (!header.kid) {
+    client.getSigningKeys()
+      .then(keys => {
+        if (!keys || keys.length === 0) return callback(new Error('Nenhuma chave disponível'));
+        callback(null, keys[0].getPublicKey());
+      })
+      .catch(err => callback(err));
+    return;
+  }
+  
+  client.getSigningKey(header.kid)
+    .then(key => callback(null, key.getPublicKey()))
+    .catch(err => callback(err));
+};
+
+// TODO: Substituir por consulta real ao PostgreSQL quando migrar
+const findUserByToolcenterId = async (toolcenterId) => {
+  const users = JSON.parse(localStorage.getItem('users') || '[]');
+  return users.find(u => u.toolcenterId === toolcenterId) || null;
+};
+
+const findUserByEmail = async (email) => {
+  const users = JSON.parse(localStorage.getItem('users') || '[]');
+  return users.find(u => u.email === email) || null;
+};
+
+const createUser = async (data) => {
+  const users = JSON.parse(localStorage.getItem('users') || '[]');
+  const newUser = { ...data, id: Date.now().toString(), createdAt: new Date().toISOString() };
+  users.push(newUser);
+  localStorage.setItem('users', JSON.stringify(users));
+  return newUser;
+};
+
+const updateUser = async (id, data) => {
+  const users = JSON.parse(localStorage.getItem('users') || '[]');
+  const idx = users.findIndex(u => u.id === id);
+  if (idx === -1) return null;
+  users[idx] = { ...users[idx], ...data, updatedAt: new Date().toISOString() };
+  localStorage.setItem('users', JSON.stringify(users));
+  return users[idx];
+};
+
+const toolcenterAuthMiddleware = async (req, res, next) => {
+  // APAGAR ESTA LINHA ANTES DE PRODUÇÃO - MODO DESENVOLVIMENTO SEM TOOLCENTER
+  if (process.env.NODE_ENV === 'development' && process.env.BYPASS_AUTH === 'true') {
+    req.user = { id: '1', toolcenterId: 'dev-user', email: 'dev@test.com', name: 'Dev', role: 'ADMINISTRADOR' };
+    return next();
+  }
+  // FIM DO BLOCO PARA APAGAR
+
+  try {
+    let token = req.cookies?.jwt || (req.headers.authorization?.startsWith('Bearer ') ? req.headers.authorization.substring(7) : null);
+
+    if (!token) {
+      return res.status(401).json({ error: 'Não autenticado', redirectTo: process.env.TOOLCENTER_LOGIN_URL });
+    }
+
+    jwt.verify(token, getSigningKey, { algorithms: ['RS256'] }, async (err, decoded) => {
+      if (err || !decoded) {
+        return res.status(401).json({ error: 'Token inválido', redirectTo: process.env.TOOLCENTER_LOGIN_URL });
+      }
+
+      const toolAccess = decoded.tools_access?.find(access => access.tool_slug === process.env.TOOL_SLUG);
+      
+      if (!toolAccess) {
+        return res.status(403).json({ error: 'Acesso negado à ferramenta', code: 'TOOL_ACCESS_DENIED' });
+      }
+
+      let user = await findUserByToolcenterId(decoded.sub);
+      
+      if (!user) {
+        user = await findUserByEmail(decoded.email);
+        if (user) {
+          user = await updateUser(user.id, { toolcenterId: decoded.sub, name: decoded.name || user.name, email: decoded.email });
+        } else {
+          user = await createUser({
+            toolcenterId: decoded.sub,
+            email: decoded.email,
+            name: decoded.name || 'Usuário',
+            role: toolAccess.role,
+            passwordHash: null
+          });
+        }
+      } else {
+        user = await updateUser(user.id, { name: decoded.name || user.name, email: decoded.email, role: toolAccess.role });
+      }
+
+      req.user = {
+        id: user.id,
+        toolcenterId: user.toolcenterId,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        permissions: decoded.tools_access || []
+      };
+
+      next();
+    });
+
+  } catch (error) {
+    console.error('Erro autenticação:', error);
+    res.status(500).json({ error: 'Erro interno' });
+  }
+};
+
+module.exports = { toolcenterAuthMiddleware };
+3. Backend - Server.js Atualizado
+Atualizar src/server/index.js:
+JavaScript
+Copy
+const express = require('express');
+const cors = require('cors');
+const cookieParser = require('cookie-parser');
+const { toolcenterAuthMiddleware } = require('./middleware/toolcenterAuth');
+
+const app = express();
+
+app.use(cors({
+  origin: process.env.CORS_ORIGINS?.split(',') || ['http://localhost:3000', 'http://localhost:3002'],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
+app.use(cookieParser());
+app.use(express.json());
+
+app.get('/health', (req, res) => res.json({ status: 'ok' }));
+
+// Rota pública de verificação de sessão
+app.get('/api/v1/me', toolcenterAuthMiddleware, (req, res) => {
+  res.json({ user: req.user, isAuthenticated: true });
+});
+
+// Aplicar middleware em rotas protegidas
+app.use('/api/v1', toolcenterAuthMiddleware);
+
+// TODO: Suas rotas protegidas aqui
+// app.use('/api/v1/empresas', empresasRouter);
+
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).json({ error: 'Erro interno do servidor' });
+});
+
+const PORT = process.env.PORT || 3001;
+app.listen(PORT, () => console.log(`API na porta ${PORT}`));
+4. Frontend - API com Interceptor
+Criar src/services/api.js:
+JavaScript
+Copy
+import axios from 'axios';
+
+const api = axios.create({
+  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:3001/api/v1',
+  withCredentials: true,
+  headers: { 'Content-Type': 'application/json' },
+  timeout: 10000
+});
+
+api.interceptors.response.use(
+  response => response,
+  async (error) => {
+    const { response } = error;
+
+    if (response?.status === 401) {
+      window.location.href = response?.data?.redirectTo || import.meta.env.VITE_TOOLCENTER_URL || 'http://localhost:3000/login';
+      return Promise.reject(error);
+    }
+
+    if (response?.status === 403) {
+      return Promise.reject({
+        ...error,
+        isPermissionError: true,
+        message: response?.data?.error || 'Acesso negado'
+      });
+    }
+
+    return Promise.reject(error);
+  }
+);
+
+export default api;
+5. Frontend - Store de Autenticação
+Criar src/stores/authStore.js:
+JavaScript
+Copy
+import { create } from 'zustand';
+import api from '../services/api';
+
+export const useAuthStore = create((set) => ({
+  user: null,
+  isAuthenticated: false,
+  isLoading: true,
+  error: null,
+  hasToolAccess: false,
+
+  checkAuth: async () => {
+    try {
+      set({ isLoading: true, error: null });
+      const response = await api.get('/me');
+      const { user } = response.data;
+      
+      set({
+        user,
+        isAuthenticated: true,
+        isLoading: false,
+        hasToolAccess: true,
+        error: null
+      });
+    } catch (error) {
+      const isPermissionError = error?.response?.status === 403 || error?.isPermissionError;
+      
+      set({
+        user: null,
+        isAuthenticated: false,
+        isLoading: false,
+        hasToolAccess: !isPermissionError,
+        error: isPermissionError ? 'Acesso negado à ferramenta' : 'Sessão expirada'
+      });
+    }
+  },
+
+  clearAuth: () => set({ user: null, isAuthenticated: false, isLoading: false, error: null, hasToolAccess: false })
+}));
+6. Frontend - Layout Protegido + AccessDenied
+Criar src/components/ProtectedLayout.jsx:
+JavaScript
+Copy
+import { useEffect } from 'react';
+import { useAuthStore } from '../stores/authStore';
+import { AccessDenied } from './AccessDenied';
+
+export const ProtectedLayout = ({ children }) => {
+  const { checkAuth, isLoading, isAuthenticated, hasToolAccess } = useAuthStore();
+
+  useEffect(() => { checkAuth(); }, []);
+
+  if (isLoading) return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>Carregando...</div>;
+  
+  if (!hasToolAccess) return <AccessDenied />;
+  
+  if (!isAuthenticated) return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>Redirecionando...</div>;
+
+  return children;
+};
+Criar src/components/AccessDenied.jsx:
+JavaScript
+Copy
+export const AccessDenied = () => (
+  <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+    <h2 style={{ color: '#d32f2f' }}>Acesso Negado</h2>
+    <p>Você não tem permissão para acessar esta ferramenta.</p>
+    <button onClick={() => window.location.href = import.meta.env.VITE_TOOLCENTER_URL || 'http://localhost:3000'}>
+      Voltar ao ToolCenter
+    </button>
+  </div>
+);
+7. Frontend - App.jsx Atualizado
+JavaScript
+Copy
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { ProtectedLayout } from './components/ProtectedLayout';
+import Dashboard from './pages/Dashboard';
+// TODO: Importar outras páginas
+
+function App() {
+  return (
+    <BrowserRouter>
+      <ProtectedLayout>
+        <Routes>
+          <Route path="/" element={<Dashboard />} />
+          {/* TODO: Outras rotas */}
+          <Route path="*" element={<div>Página não encontrada</div>} />
+        </Routes>
+      </ProtectedLayout>
+    </BrowserRouter>
+  );
+}
+
+export default App;
+8. SQL Preparatório (para PostgreSQL futuro)
+sql
+Copy
+-- Executar quando migrar para PostgreSQL
+ALTER TABLE users ADD COLUMN IF NOT EXISTS toolcenter_id VARCHAR(255) UNIQUE;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(50) DEFAULT 'OPERADOR';
+ALTER TABLE users ALTER COLUMN password_hash DROP NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_users_toolcenter_id ON users(toolcenter_id);
+📦 DEPENDÊNCIAS
+bash
+Copy
+npm install jsonwebtoken jwks-rsa cookie-parser
+npm install -D @types/jsonwebtoken @types/cookie-parser
+npm install zustand axios
+✅ CHECKLIST DE TESTE
+[ ] Acessar sem cookie → redireciona para ToolCenter (com BYPASS_AUTH=false)
+[ ] Com BYPASS_AUTH=true → entra direto sem login
+[ ] Logar no ToolCenter → retorna com cookie → entra na aplicação
+[ ] Usuário sem permissão na ferramenta → tela AccessDenied
+[ ] Endpoint /api/v1/me retorna dados do usuário correto
+[ ] Usuário novo é criado automaticamente (auto-provisioning)
+⚠️ NOTAS CRÍTICAS
+APAGAR BYPASS ANTES DA PRODUÇÃO: Localize no middleware o bloco marcado com "APAGAR ESTA LINHA ANTES DE PRODUÇÃO" e remova completamente.
+LocalStorage temporário: O middleware usa LocalStorage para simular banco. Será substituído por PostgreSQL na próxima fase.
+Portas: ToolCenter (3000), API (3001), Frontend (3002).
+Cookie HTTP-Only: Frontend nunca vê o token, apenas o backend lê via req.cookies.jwt.
+TOOL_SLUG: Definir no .env o identificador único da ferramenta no ToolCenter.

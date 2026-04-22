@@ -1,7 +1,7 @@
 import React from 'react';
 import HeaderSelectors from '../HeaderSelectors';
 
-const ReportHeader = ({ onExportPDF, onExportCSV, activeTab }) => {
+const ReportHeader = ({ onExportPDF, onExportCSV, activeTab, isExportingPDF }) => {
     return (
         <div style={styles.container}>
             {/* Seletores de Contexto (Reutilizando o componente existente) */}
@@ -13,11 +13,18 @@ const ReportHeader = ({ onExportPDF, onExportCSV, activeTab }) => {
             <div style={styles.actionsArea}>
                 <button
                     onClick={onExportPDF}
-                    style={styles.actionButton}
-                    title="Exportar como PDF (Visual)"
+                    style={{
+                        ...styles.actionButton,
+                        opacity: isExportingPDF ? 0.7 : 1,
+                        cursor: isExportingPDF ? 'not-allowed' : 'pointer'
+                    }}
+                    title="Exportar como PDF Profissional"
+                    disabled={isExportingPDF}
                 >
-                    <span className="material-symbols-outlined">print</span>
-                    <span>Imprimir / PDF</span>
+                    <span className={`material-symbols-outlined ${isExportingPDF ? 'rotating' : ''}`}>
+                        {isExportingPDF ? 'sync' : 'picture_as_pdf'}
+                    </span>
+                    <span>{isExportingPDF ? 'Gerando...' : 'Exportar PDF'}</span>
                 </button>
 
                 <button

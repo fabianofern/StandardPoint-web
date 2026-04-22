@@ -3,6 +3,13 @@ const express = require('express');
 const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
+const cookieParser = require('cookie-parser');
+const toolcenterAuthMiddleware = require('./middleware/toolcenterAuth');
+const { initDB } = require('./database/schema');
+const { importBackupToDb, exportDbToBackup } = require('./services/backupService');
+
+// Inicializar SQLite
+initDB();
 
 const app = express();
 
@@ -18,12 +25,19 @@ app.use(cors({
 }));
 
 app.use(express.json({ limit: '50mb' }));
+app.use(cookieParser());
 
 app.get('/health', (req, res) => {
   res.json({ status: 'ok' });
 });
 
 const apiRouter = express.Router();
+
+apiRouter.use(toolcenterAuthMiddleware);
+
+apiRouter.get('/me', (req, res) => {
+  res.json({ user: req.user });
+});
 
 const backupDir = path.join(__dirname, '..', '..', 'backups');
 if (!fs.existsSync(backupDir)) {
@@ -37,22 +51,27 @@ apiRouter.post('/backups', (req, res) => {
       return res.status(400).json({ error: 'Dados do backup não fornecidos' });
     }
     
+    // 1 - Persistir em SQLite Transacional
+    importBackupToDb(dadosBackup);
+    
+    // 2 - Salvar também em arquivo para histórico (retrocompatibilidade da UI)
     const ts = new Date().toISOString().replace(/[:.]/g, '-');
     const finalName = filename || `backup_${ts}.json`;
     const filePath = path.join(backupDir, finalName);
     
     fs.writeFileSync(filePath, JSON.stringify(dadosBackup, null, 2));
     
-    res.json({ success: true, message: 'Backup salvo com sucesso', filename: finalName });
+    res.json({ success: true, message: 'Dados gravados no banco e backup salvo', filename: finalName });
   } catch (error) {
-    console.error('Erro ao salvar backup:', error);
-    res.status(500).json({ error: 'Erro ao salvar o backup no servidor' });
+    console.error('Erro ao processar e salvar no banco:', error);
+    res.status(500).json({ error: 'Erro fatal ao persistir dados no SQLite' });
   }
 });
 
 apiRouter.get('/backups', (req, res) => {
   try {
     const files = fs.readdirSync(backupDir).filter(file => file.endsWith('.json'));
+    files.unshift('ESTADO_ATUAL_DB.json'); // Inject current SQLite active export
     res.json({ backups: files });
   } catch (error) {
     console.error('Erro ao listar backups:', error);
@@ -63,6 +82,12 @@ apiRouter.get('/backups', (req, res) => {
 apiRouter.get('/backups/:filename', (req, res) => {
   try {
     const { filename } = req.params;
+    
+    if (filename === 'ESTADO_ATUAL_DB.json') {
+      const dbData = exportDbToBackup();
+      return res.json({ data: dbData });
+    }
+
     const filePath = path.join(backupDir, filename);
     
     if (!fs.existsSync(filePath)) {
@@ -72,8 +97,8 @@ apiRouter.get('/backups/:filename', (req, res) => {
     const fileContent = fs.readFileSync(filePath, 'utf-8');
     res.json({ data: JSON.parse(fileContent) });
   } catch (error) {
-    console.error('Erro ao ler backup:', error);
-    res.status(500).json({ error: 'Erro ao ler arquivo de backup' });
+    console.error('Erro ao exportar/ler dados:', error);
+    res.status(500).json({ error: 'Erro ao carregar dados do banco/arquivo' });
   }
 });
 

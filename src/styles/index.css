@@ -39,8 +39,9 @@ code {
   }
 
   /* Reset layout constraints */
-  body, #root, main, .main-content {
+  body, #root, main, .main-content, .main-app-container {
     margin: 0 !important;
+    margin-left: 0 !important;
     padding: 0 !important;
     width: 100% !important;
     height: auto !important;

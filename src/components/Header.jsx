@@ -62,7 +62,7 @@ const Header = () => {
   }, [totals.totalPF, empresaAtualObj?.valorPF]);
 
   return (
-    <header style={styles.header}>
+    <header style={styles.header} className="no-print">
       <div style={styles.headerContent}>
         {/* Lado esquerdo: Logo/Banner */}
         <div style={styles.headerLeft}>

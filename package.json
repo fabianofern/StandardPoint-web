@@ -5,11 +5,12 @@
   "main": "public/electron.js",
   "scripts": {
     "dev:web": "vite --port 3002",
-    "dev:server": "nodemon src/server/index.js",
+    "dev:server": "nodemon --exec tsx src/server/index.ts",
     "dev": "concurrently -k \"npm run dev:server\" \"npm run dev:web\"",
     "build": "vite build",
     "preview": "vite preview",
-    "start": "npm run dev"
+    "start": "npm run dev",
+    "test": "vitest"
   },
   "keywords": [
     "ifpug",
@@ -37,9 +38,21 @@
     "zustand": "^5.0.12"
   },
   "devDependencies": {
+    "@rolldown/binding-win32-x64-msvc": "^1.0.0-rc.17",
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/cookie-parser": "^1.4.10",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^4.2.1",
     "concurrently": "^8.2.2",
+    "jsdom": "^29.1.0",
     "nodemon": "^3.1.14",
-    "vite": "^5.0.8"
+    "tsx": "^4.21.0",
+    "typescript": "^6.0.3",
+    "vite": "^5.0.8",
+    "vitest": "^2.1.9"
   }
 }
